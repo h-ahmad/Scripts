@@ -11,6 +11,8 @@ import pandas as pd
 import os
 from skimage import io, transform
 import numpy as np
+import torchvision.transforms as transforms
+from sklearn.preprocessing import OneHotEncoder
 
 class Cifar10Loader(Dataset):
     def __init__(self, csv_path, dataset_path, transform=None):
@@ -61,12 +63,11 @@ class Cifar10LoaderTrain(Dataset):
 if __name__ == '__main__':
   directory = r'C:\Users\hussain\.spyder-py3\data\cifar1'
   csv_path = os.path.join(directory, 'labels1.csv')
-  data_path = os.path.join(directory, 'train1')
-  import torchvision.transforms as transforms
+  data_path = os.path.join(directory, 'train1')  
   transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
   trainset = Cifar10Loader(csv_path, data_path, transform)
-  trainLoader = torch.utils.data.DataLoader(trainset,batch_size=4)
-  from sklearn.preprocessing import OneHotEncoder
+  # trainset = Cifar10LoaderTrain(csv_path, data_path, transform)
+  trainLoader = torch.utils.data.DataLoader(trainset,batch_size=4)  
   for index, (data, target) in enumerate(trainLoader):
       print('This is input: ', data.shape)
       print('this is label: ', target.shape)
