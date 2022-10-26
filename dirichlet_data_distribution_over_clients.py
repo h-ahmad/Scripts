@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Oct 25 15:15:27 2022
+Created on Wed Oct 26 16:29:36 2022
 
 @author: hussain
 """
@@ -173,17 +173,19 @@ def load_mnist(data_path):
     X_test, y_test = cifar10_test_ds.data, cifar10_test_ds.target
     return (X_train, y_train, X_test, y_test)
 
-def data_to_pickle(data_path, dataset_name, X_train, y_train):
+def data_to_pickle(data_path, dataset_name, X_train, y_train, X_test, y_test):
     # store data with pickle
     with open(os.path.join(data_path, dataset_name+'.pkl'), 'wb') as file:  
-        data_store = {'data': X_train, 'label': y_train}
+        data_store = {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test}
         pickle.dump(data_store, file)
     # show data from pickle
     with open(os.path.join(data_path, dataset_name+'.pkl'), 'rb') as file:
         data_store = pickle.load(file)
         print(data_store.keys())     
-        print('data: ', data_store['data'].shape)
-        print('label: ', data_store['label'].shape)
+        print('X_train: ', data_store['X_train'].shape)
+        print('y_train: ', data_store['y_train'].shape)
+        print('X_test: ', data_store['X_test'].shape)
+        print('y_test: ', data_store['y_test'].shape)        
     
     
 
@@ -192,13 +194,10 @@ if __name__ == '__main__':
     sys.setrecursionlimit(100000)
 #    print(sys.getrecursionlimit())    
     
-    dataset_name = 'cifar10' # cifar10, mnist
+    dataset_name = 'mnist' # cifar10, mnist
     data_path = 'data/'
     number_of_nodes = 3
     partition_type = 'noniid' # iid, noniid
     X_train, y_train, X_test, y_test, net_dataidx_map, traindata_cls_counts = dirichlet_data_distribution(dataset_name, data_path, number_of_nodes, partition_type, beta=0.4)
     # save data obtained from Dirichlet distribution
-    data_to_pickle(data_path, dataset_name, X_train, y_train)
-    
-
-    
+    data_to_pickle(data_path, dataset_name, X_train, y_train, X_test, y_test)
