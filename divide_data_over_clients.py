@@ -14,7 +14,7 @@ import csv
 
 def main():
     data_path = 'data/'
-    dataset_name = 'cifar10'
+    dataset_name = 'mnist'  # (cifar10, mnist) pickle file name
     number_of_clients = 3
     with open(os.path.join(data_path, dataset_name+'.pkl'), 'rb') as file:
         data_store = pickle.load(file)
@@ -30,8 +30,10 @@ def main():
             os.makedirs(os.path.join(data_path, 'client'+str(j)+'/'), exist_ok = True)
             data_store_path = os.path.join(data_path, 'client'+str(j)+'/')   
             csv_file = file = open(os.path.join(data_path, str(j)+'.csv'), 'w', newline='')
-            writer = csv.writer(csv_file)            
-        cv2.imwrite(os.path.join(data_store_path, str(i)+'.png'), data_store['data'][i])                
+            writer = csv.writer(csv_file)      
+#        image = data_store['data'][i]  # for numpy . i.e CIFAR10
+        image = data_store['data'][i].numpy()  # for tensor . i.e MNIST
+        cv2.imwrite(os.path.join(data_store_path, str(i)+'.png'), image)                
         writer.writerow([str(i), data_store['label'][i]])
     csv_file.close()
 
