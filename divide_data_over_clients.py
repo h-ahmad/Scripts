@@ -37,7 +37,7 @@ def main():
         image = data_store['X_train'][i]  # for numpy . i.e CIFAR10
 #        image = data_store['X_train'][i].numpy()  # for tensor . i.e MNIST
         cv2.imwrite(os.path.join(data_store_path, str(i)+'.png'), image)                
-        writer.writerow([str(i), data_store['y_train'][i]])
+        writer.writerow([str(i)+'.png', data_store['y_train'][i]])
     csv_file.close()
     # save a single test data for all clients
     csv_file = open(os.path.join(data_path, 'test.csv'), 'w', newline='')
@@ -50,7 +50,7 @@ def main():
         image = data_store['X_test'][k]  # for numpy . i.e CIFAR10
 #        image = data_store['X_test'][k].numpy()  # for tensor . i.e MNIST
         cv2.imwrite(os.path.join(data_store_path, str(k)+'.png'), image)
-        writer.writerow([str(k), data_store['y_test'][k]])
+        writer.writerow([str(k)+'.png', data_store['y_test'][k]])
     csv_file.close()
 
 if __name__ == '__main__':
