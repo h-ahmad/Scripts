@@ -20,7 +20,6 @@ def class_distribution(data_path, pickle_file_name, classes_name):
         print('yTrain: ', yTrain.shape)
         classes, counts = np.unique(yTrain, return_counts=True)        
         bars = plt.barh(classes_name, counts)
-#        plt.bar_label(bars, label_type='edge', labels=[f'{x:,}' for x in bars.datavalues])
         plt.bar_label(bars, label_type='center', labels=[f'{x:,}' for x in bars.datavalues])
         plt.title('Class distribution in training set')
 
@@ -32,9 +31,7 @@ def scatter_plot(data_path, pickle_file_name, classes_name):
         print('yTrain: ', yTrain.shape)
         classes, counts = np.unique(yTrain, return_counts=True) 
         area = (30 * np.random.rand(len(classes)))**2  # 0 to 15 point radii
-        colors = np.random.rand(len(classes))
-#        plt.scatter(classes, counts, s=area, c=colors, alpha=0.5)
-        
+        colors = np.random.rand(len(classes)) 
         fig, ax = plt.subplots()
         ax.scatter(classes, counts, s=area, c=colors, alpha=0.5)
         # annotate labels
