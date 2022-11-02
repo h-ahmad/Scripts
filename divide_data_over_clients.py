@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed Oct 26 16:36:59 2022
+Created on Wed Nov  2 11:01:10 2022
 
 @author: hussain
 """
-
 
 import os
 import pickle
@@ -14,8 +13,8 @@ import csv
 
 def main():
     data_path = 'data/'
-    dataset_name = 'cifar10'  # (cifar10, mnist) pickle file name
-    number_of_clients = 3
+    dataset_name = 'mnist'  # (cifar10, mnist) pickle file name
+    number_of_clients = 4
     with open(os.path.join(data_path, dataset_name+'.pkl'), 'rb') as file:
         data_store = pickle.load(file)
         print(data_store.keys())     
@@ -34,8 +33,10 @@ def main():
             data_store_path = os.path.join(data_path, 'client'+str(j)+'/')   
             csv_file = open(os.path.join(data_path, str(j)+'.csv'), 'w', newline='')
             writer = csv.writer(csv_file)      
-        image = data_store['X_train'][i]  # for numpy . i.e CIFAR10
-#        image = data_store['X_train'][i].numpy()  # for tensor . i.e MNIST
+        if dataset_name == 'cifar10':
+            image = data_store['X_train'][i]  # for numpy . i.e CIFAR10
+        else:
+            image = data_store['X_train'][i].numpy()  # for tensor . i.e MNIST
         cv2.imwrite(os.path.join(data_store_path, str(i)+'.png'), image)                
         writer.writerow([str(i)+'.png', data_store['y_train'][i]])
     csv_file.close()
@@ -47,8 +48,10 @@ def main():
     csv_file = open(os.path.join(data_path, 'test.csv'), 'w', newline='')
     writer = csv.writer(csv_file)    
     for k in range(data_store['y_test'].shape[0]):
-        image = data_store['X_test'][k]  # for numpy . i.e CIFAR10
-#        image = data_store['X_test'][k].numpy()  # for tensor . i.e MNIST
+        if dataset_name == 'cifar10':
+            image = data_store['X_test'][k]  # for numpy . i.e CIFAR10
+        else:
+            image = data_store['X_test'][k].numpy()  # for tensor . i.e MNIST
         cv2.imwrite(os.path.join(data_store_path, str(k)+'.png'), image)
         writer.writerow([str(k)+'.png', data_store['y_test'][k]])
     csv_file.close()
