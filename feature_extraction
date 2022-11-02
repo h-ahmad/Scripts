@@ -1,0 +1,12 @@
+from torchvision.models.feature_extraction import get_graph_node_names, create_feature_extractor
+from torchvision.models.resnet import resnet50, resnet18
+import torch.nn as nn
+import torch
+
+model = resnet18(pretrained=True)
+model.eval()
+nodes, eval_nodes = get_graph_node_names(model)
+features_ext = create_feature_extractor(model, return_nodes=['avgpool'])
+input = torch.randn(4,3,32,32).type(torch.FloatTensor) # 4 is batch size, 3 is channel, 32 is height and 32 is width
+outputs = features_ext(input)['avgpool']
+print('outputs:', outputs.squeeze(2).squeeze(2).shape)
