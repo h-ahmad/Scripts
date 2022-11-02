@@ -1,203 +1,155 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed Oct 26 16:29:36 2022
+Created on Wed Nov  2 13:47:56 2022
 
 @author: hussain
 """
 
-
-import numpy as np
+import argparse
 import torchvision.transforms as transforms
-#from datasets import CIFAR10_truncated, MNIST_truncated
-import sys
-import pickle
-import os
-import torch.utils.data as data
+import torch
 import torchvision
-from torchvision.datasets import CIFAR10, MNIST
-#import numpy as np
+import numpy as np
+import os
 
-class CIFAR10_truncated(data.Dataset):
-    def __init__(
-        self,
-        root,
-        dataidxs=None,
-        train=True,
-        transform=None,
-        target_transform=None,
-        download=False,
-    ):
-        self.root = root
-        self.dataidxs = dataidxs
-        self.train = train
-        self.transform = transform
-        self.target_transform = target_transform
-        self.download = download
-        self.data, self.target = self.__build_truncated_dataset__()
+parser = argparse.ArgumentParser(description = 'Main Script')
+parser.add_argument('--data_path', type = str, default = './data', help = 'Path to the main directory')
+parser.add_argument('--dataset_name', type = str, default = 'mnist', help = 'cifar10, mnist')
+parser.add_argument('--number_of_classes', type = int, default = 10, help = 'Number of classes in the given dataset')
+parser.add_argument('--image_height', type = int, default = 28, help = 'Height of a single image in dataset')
+parser.add_argument('--image_width', type = int, default = 28, help = 'Width of a single image in dataset')
+parser.add_argument('--image_channel', type = int, default = 1, help = 'Channel of a single image in dataset')
+parser.add_argument('--number_of_clients', type = int, default = 4, help = 'Total nodes to which dataset is divided')
+parser.add_argument('--distribution_method', type = str, default = 'non_iid', help = 'iid, non_iid')
+parser.add_argument('--dirichlet_alpha', type = float, default = 0.5, help = 'Value of alpha for dirichlet distribution')
+parser.add_argument('--imbalance_sigma', type = int, default = 0, help = '0 or otherwise')
+args = parser.parse_args() 
 
-    def __build_truncated_dataset__(self):
-        cifar_dataobj = CIFAR10(self.root, self.train, self.transform, self.target_transform, self.download)
-        if torchvision.__version__ == "0.2.1":
-            if self.train:
-                data, target = cifar_dataobj.train_data, np.array(cifar_dataobj.train_labels)
-            else:
-                data, target = cifar_dataobj.test_data, np.array(cifar_dataobj.test_labels)
-        else:
-            data = cifar_dataobj.data
-            target = np.array(cifar_dataobj.targets)
-        if self.dataidxs is not None:
-            data = data[self.dataidxs]
-            target = target[self.dataidxs]
-        return data, target
+def cifar10():
+    transform = transforms.Compose([transforms.ToTensor(),
+                                    transforms.Normalize(mean=[0.491, 0.482, 0.447], std=[0.247, 0.243, 0.262])])
+    trainset = torchvision.datasets.CIFAR10(root=args.data_path,
+                                          train=True , download=True, transform=transform)
+    testset = torchvision.datasets.CIFAR10(root=args.data_path,
+                                          train=False, download=True, transform=transform)    
+    trainload = torch.utils.data.DataLoader(trainset, batch_size=50000, shuffle=False, num_workers=1)
+    testload = torch.utils.data.DataLoader(testset, batch_size=10000, shuffle=False, num_workers=1)
+    return trainload, testload
+def mnist():
+    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+    trainset = torchvision.datasets.MNIST(root=args.data_path, 
+                                        train=True , download=True, transform=transform)
+    testset = torchvision.datasets.MNIST(root=args.data_path, 
+                                        train=False, download=True, transform=transform)    
+    trainload = torch.utils.data.DataLoader(trainset, batch_size=60000, shuffle=False, num_workers=1)
+    testload = torch.utils.data.DataLoader(testset, batch_size=10000, shuffle=False, num_workers=1)
+    return trainload, testload
 
-    def truncate_channel(self, index):
-        for i in range(index.shape[0]):
-            gs_index = index[i]
-            self.data[gs_index, :, :, 1] = 0.0
-            self.data[gs_index, :, :, 2] = 0.0
+def imbalance(samples_per_client, y_train):
+    if args.imbalance_sigma != 0:
+        client_data_list = (np.random.lognormal(mean=np.log(samples_per_client), sigma=args.imbalance_sigma, size=args.number_of_clients))
+        client_data_list = (client_data_list/np.sum(client_data_list)*len(y_train)).astype(int)
+        diff = np.sum(client_data_list) - len(y_train)
+        # Add/Subtract the excess number starting from first client
+        if diff!= 0:
+            for client_i in range(args.number_of_clients):
+                if client_data_list[client_i] > diff:
+                    client_data_list[client_i] -= diff
+                    break
+    else:
+        client_data_list = (np.ones(args.number_of_clients) * samples_per_client).astype(int)
+    return client_data_list
 
-    def __getitem__(self, index):
-        """
-        Args:
-            index (int): Index
-        Returns:
-            tuple: (image, target) where target is index of the target class.
-        """
-        img, target = self.data[index], self.target[index]
-        if self.transform is not None:
-            img1 = self.transform(img)
-            img2 = self.transform(img)
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-        return img1, img2, target, index
+def dirichlet_distribution(client_data_list, X_train, y_train):
+    class_priors   = np.random.dirichlet(alpha=[args.dirichlet_alpha]*args.number_of_classes,size=args.number_of_clients) # <class 'numpy.ndarray'>  (4, 10)
+    prior_cumsum = np.cumsum(class_priors, axis=1) # <class 'numpy.ndarray'>  (4, 10)
+    idx_list = [np.where(y_train==i)[0] for i in range(args.number_of_classes)] # <class 'list'>
+    class_amount = [len(idx_list[i]) for i in range(args.number_of_classes)] # <class 'list'>  0=>50000
+    client_x = [ np.zeros((client_data_list[clnt__], args.image_channel, args.image_height, args.image_width)).astype(np.float32) for clnt__ in range(args.number_of_clients) ] # <class 'list'>                
+    client_y = [ np.zeros((client_data_list[clnt__], 1)).astype(np.int64) for clnt__ in range(args.number_of_clients) ] # <class 'list'>                
+    while(np.sum(client_data_list)!=0):
+        current_client = np.random.randint(args.number_of_clients)
+        # If current node is full resample a client
+        # print('Remaining Data: %d' %np.sum(client_data_list))
+        if client_data_list[current_client] <= 0:
+            continue
+        client_data_list[current_client] -= 1
+        curr_prior = prior_cumsum[current_client]
+        while True:
+            cls_label = np.argmax(np.random.uniform() <= curr_prior)
+            # Redraw class label if trn_y is out of that class
+            if class_amount[cls_label] <= 0:
+                continue
+            class_amount[cls_label] -= 1
+            client_x[current_client][client_data_list[current_client]] = X_train[idx_list[cls_label][class_amount[cls_label]]]
+            client_y[current_client][client_data_list[current_client]] = y_train[idx_list[cls_label][class_amount[cls_label]]]
+            break                
+    client_x = np.asarray(client_x)  # (4, 12500, 1)
+    client_y = np.asarray(client_y)  #(4, 12500, 1)          
+    cls_means = np.zeros((args.number_of_clients, args.number_of_classes))
+    for clnt in range(args.number_of_clients):
+        for cls in range(args.number_of_classes):
+            cls_means[clnt,cls] = np.mean(client_y[clnt]==cls)
+    prior_real_diff = np.abs(cls_means-class_priors)
+    print('--- Max deviation from prior: %.4f' %np.max(prior_real_diff))
+    print('--- Min deviation from prior: %.4f' %np.min(prior_real_diff))
+    return (client_x, client_y)
 
-    def __len__(self):
-        return len(self.data)
+def independent_identical_data(client_data_list, X_train, y_train):
+    client_x = [ np.zeros((client_data_list[clnt__], args.image_channel, args.image_height, args.image_width)).astype(np.float32) for clnt__ in range(args.number_of_clients) ]
+    client_y = [ np.zeros((client_data_list[clnt__], 1)).astype(np.int64) for clnt__ in range(args.number_of_clients) ]    
+    clnt_data_list_cum_sum = np.concatenate(([0], np.cumsum(client_data_list)))
+    for clnt_idx_ in range(args.number_of_clients):
+        client_x[clnt_idx_] = X_train[clnt_data_list_cum_sum[clnt_idx_]:clnt_data_list_cum_sum[clnt_idx_+1]]
+        client_y[clnt_idx_] = y_train[clnt_data_list_cum_sum[clnt_idx_]:clnt_data_list_cum_sum[clnt_idx_+1]]        
+    client_x = np.asarray(client_x)
+    client_y = np.asarray(client_y)
+    return (client_x, client_y)
 
-class MNIST_truncated():
-    def __init__(self, data_path, dataidxs=None, train=True, transform=None, target_transform = None, download=False):
-        self.data_path = data_path
-        self.dataidxs = dataidxs
-        self.train = train
-        self.transform = transform
-        self.target_transform = target_transform
-        self.download = download
-        self.data, self.target = self.__truncated_dataset__()
-    def __len__(self):
-        return len(self.data)
-    def __truncated_dataset__(self):
-        mnist_dataobj = MNIST(self.data_path, self.train, self.transform, self.target_transform, self.download)
-        data = mnist_dataobj.data
-        target = np.array(mnist_dataobj.targets)
-        if self.dataidxs is not None:
-            data = data[self.dataidxs]
-            target = target[self.dataidxs]
-        return data, target
-    def __getitem__(self, index):
-        img, target = self.data[index], self.target[index]
-        if self.transform is not None:
-            img = self.transform(img)
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-        return img, target, index
-
-def dirichlet_data_distribution(dataset_name, data_path, number_of_nodes, partition_type, beta=0.5):
-    if dataset_name == "mnist":
-        X_train, y_train, X_test, y_test = load_mnist(data_path)
-    elif dataset_name == "cifar10":
-        X_train, y_train, X_test, y_test = load_cifar10(data_path)
-    
-    n_train = y_train.shape[0]
-    if partition_type == "iid":
-        idxs = np.random.permutation(n_train)
-        batch_idxs = np.array_split(idxs, number_of_nodes)
-        net_dataidx_map = {i: batch_idxs[i] for i in range(number_of_nodes)}
-    elif partition_type == "noniid":
-        min_size = 0
-        min_require_size = 10
-        K = 10
-        N = y_train.shape[0]
-        net_dataidx_map = {}
-
-        while min_size < min_require_size:
-            idx_batch = [[] for _ in range(number_of_nodes)]
-            for k in range(K):
-                idx_k = np.where(y_train == k)[0]
-                np.random.shuffle(idx_k)
-                proportions = np.random.dirichlet(np.repeat(beta, number_of_nodes))
-                proportions = np.array([p * (len(idx_j) < N / number_of_nodes) for p, idx_j in zip(proportions, idx_batch)])
-                proportions = proportions / proportions.sum()
-                proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
-                idx_batch = [idx_j + idx.tolist() for idx_j, idx in zip(idx_batch, np.split(idx_k, proportions))]                
-                min_size = min([len(idx_j) for idx_j in idx_batch])
-
-        for j in range(number_of_nodes):
-            np.random.shuffle(idx_batch[j])
-            net_dataidx_map[j] = idx_batch[j]
+def data_distribution():
+    if args.dataset_name == 'cifar10':
+        trainload, testload = cifar10()
+    if args.dataset_name == 'mnist':
+        trainload, testload = mnist()
         
-    traindata_cls_counts = get_net_data_stats(y_train, net_dataidx_map)
-    return (X_train, y_train, X_test, y_test, net_dataidx_map, traindata_cls_counts)
+    # iterate over whole data
+    train_iteration = trainload.__iter__(); 
+    test_iteration = testload.__iter__() 
+    X_train, y_train = train_iteration.__next__()  # <class 'torch.Tensor'>
+    X_test, y_test = test_iteration.__next__()
     
-def get_net_data_stats(y_train, net_dataidx_map):
-    net_cls_counts = {}
-    for net_i, dataidx in net_dataidx_map.items():
-        unq, unq_cnt = np.unique(y_train[dataidx], return_counts=True)
-        tmp = {unq[i]: unq_cnt[i] for i in range(len(unq))}
-        net_cls_counts[net_i] = tmp
-
-    data_list = []
-    for net_id, data in net_cls_counts.items():
-        n_total = 0
-        for class_id, n_data in data.items():
-            n_total += n_data
-        data_list.append(n_total)
-    print("mean:", np.mean(data_list))
-    print("std:", np.std(data_list))
-    print("Data statistics: %s" % str(net_cls_counts))
-    return net_cls_counts    
-
-def load_cifar10(data_path):
-    transform = transforms.Compose([transforms.ToTensor()])
-    cifar10_train_ds = CIFAR10_truncated(data_path, train=True, transform=transform, download=True)
-    cifar10_test_ds = CIFAR10_truncated(data_path, train=False, transform=transform, download=True)
-    X_train, y_train = cifar10_train_ds.data, cifar10_train_ds.target
-    X_test, y_test = cifar10_test_ds.data, cifar10_test_ds.target
-    return (X_train, y_train, X_test, y_test)
-
-def load_mnist(data_path):
-    transform = transforms.Compose([transforms.ToTensor()])
-    cifar10_train_ds = MNIST_truncated(data_path, train=True, transform=transform, download=True)
-    cifar10_test_ds = MNIST_truncated(data_path, train=False, transform=transform, download=True)
-    X_train, y_train = cifar10_train_ds.data, cifar10_train_ds.target
-    X_test, y_test = cifar10_test_ds.data, cifar10_test_ds.target
-    return (X_train, y_train, X_test, y_test)
-
-def data_to_pickle(data_path, dataset_name, X_train, y_train, X_test, y_test):
-    # store data with pickle
-    with open(os.path.join(data_path, dataset_name+'.pkl'), 'wb') as file:  
-        data_store = {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test}
-        pickle.dump(data_store, file)
-    # show data from pickle
-    with open(os.path.join(data_path, dataset_name+'.pkl'), 'rb') as file:
-        data_store = pickle.load(file)
-        print(data_store.keys())     
-        print('X_train: ', data_store['X_train'].shape)
-        print('y_train: ', data_store['y_train'].shape)
-        print('X_test: ', data_store['X_test'].shape)
-        print('y_test: ', data_store['y_test'].shape)        
+    # convert tensor to numpy array and reshape
+    X_train = X_train.numpy();   # <class 'numpy.ndarray'>
+    y_train = y_train.numpy().reshape(-1,1)
+    X_test = X_test.numpy(); 
+    y_test = y_test.numpy().reshape(-1,1)
     
+    # shuffle data
+    random_permutation = np.random.permutation(len(y_train))
+    X_train = X_train[random_permutation]  # <class 'numpy.ndarray'>
+    y_train = y_train[random_permutation]
     
-
-if __name__ == '__main__':
+    # count samples per client
+    samples_per_client = int((len(y_train)) / args.number_of_clients)
+    
+    # imbalance if set
+    client_data_list = imbalance(samples_per_client, y_train)
         
-    sys.setrecursionlimit(100000)
-#    print(sys.getrecursionlimit())    
-    
-    dataset_name = 'mnist' # cifar10, mnist
-    data_path = 'data/'
-    number_of_nodes = 3
-    partition_type = 'noniid' # iid, noniid
-    X_train, y_train, X_test, y_test, net_dataidx_map, traindata_cls_counts = dirichlet_data_distribution(dataset_name, data_path, number_of_nodes, partition_type, beta=0.4)
-    # save data obtained from Dirichlet distribution
-    data_to_pickle(data_path, dataset_name, X_train, y_train, X_test, y_test)
+    if args.distribution_method == 'non_iid':
+        X_train, y_train = dirichlet_distribution(client_data_list, X_train, y_train)
+    elif args.distribution_method == 'iid':  
+        X_train, y_train = independent_identical_data(client_data_list, X_train, y_train)
+        
+    # Save data in the same directory with a name specified by attributes
+    file_path = args.dataset_name+'_'+str(args.number_of_clients)+'clients_'+args.distribution_method+'_alpha'+str(args.dirichlet_alpha)+'/'
+    os.makedirs(os.path.join(args.data_path, file_path), exist_ok = True)
+    np.save(os.path.join(args.data_path, os.path.join(file_path, 'X_train.npy')), X_train)
+    np.save(os.path.join(args.data_path, os.path.join(file_path, 'y_train.npy')), y_train)
+    np.save(os.path.join(args.data_path, os.path.join(file_path, 'X_test.npy')), X_test)
+    np.save(os.path.join(args.data_path, os.path.join(file_path, 'y_test.npy')), y_test)
+    print('Data saved on the location: ', os.path.join(args.data_path, file_path))
+            
+        
+if __name__ == '__main__':    
+    data_distribution()
