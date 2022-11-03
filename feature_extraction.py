@@ -16,8 +16,8 @@ import numpy as np
 
 parser = argparse.ArgumentParser(description = 'Main Script')
 parser.add_argument('--data_path', type = str, default = './data', help = 'Main path to the dataset')
-parser.add_argument('--data_file_name', type = str, default = 'mnist_train_test.pkl', help = 'Pickle file name')
-parser.add_argument('--batch_size', type = int, default = 64, help = 'Batch size. i.e 1 to any number')
+parser.add_argument('--data_file_name', type = str, default = 'cifar10_train_test.pkl', help = 'Pickle file name')
+parser.add_argument('--batch_size', type = int, default = 50, help = 'Batch size. i.e 1 to any number')
 args = parser.parse_args() 
 
 def load_data():
@@ -27,7 +27,7 @@ def load_data():
         X_train, y_train, X_test, y_test = data_store['X_train'], data_store['y_train'], data_store['X_test'], data_store['y_test']
     
     # if 4 dimensions (4-th dimension is for a client)
-    node_number = 0
+    node_number = 3
     X_train = X_train[node_number]
     y_train = y_train[node_number].squeeze(1)
     y_test = y_test.squeeze(1)
@@ -63,7 +63,11 @@ if __name__ == '__main__':
     trainY = []
     for batchIndex, (data, target) in enumerate(trainload):
         output_feature = feature_extractor(data, device)
+        
         output_feature = output_feature.squeeze(2).squeeze(2)
-        trainX.append(output_feature)
-        trainY.append(target)
-    data_to_pickle('features_client1_'+args.data_file_name, trainX, trainY, X_test, y_test)
+        output_feature = output_feature.detach().cpu().numpy()
+        trainX.append(output_feature) 
+        trainY.append(target.numpy()) 
+    trainX = np.array(trainX, dtype=np.float32)
+    trainY = np.array(trainY, dtype=np.int_)
+    data_to_pickle('features_client4_'+args.data_file_name, trainX, trainY, X_test, y_test)
