@@ -72,6 +72,7 @@ if __name__ == '__main__':
         output_feature = output_feature.detach().cpu().numpy()
         trainX.append(output_feature) 
         trainY.append(target.numpy()) 
+        break
     trainX = np.array(trainX, dtype=np.float32)
     trainY = np.array(trainY, dtype=np.int_)
     
@@ -83,6 +84,7 @@ if __name__ == '__main__':
         output_feature = output_feature.detach().cpu().numpy()
         testX.append(output_feature) 
         testY.append(target.numpy()) 
+        break
     testX = np.array(testX, dtype=np.float32)
     testY = np.array(testY, dtype=np.int_)
-    data_to_pickle('features_client'+args.client_number+'_'+args.data_file_name, trainX, trainY, testX, testY)
+    data_to_pickle('features_client'+str(args.client_number)+'_'+args.data_file_name, trainX, trainY, testX, testY)
