@@ -19,7 +19,6 @@ parser.add_argument('--data_path', type = str, default = './data', help = 'Main 
 parser.add_argument('--data_file_name', type = str, default = 'cifar10_train_test.pkl', help = 'Pickle file name')
 parser.add_argument('--client_number', type = int, default = 0, help = '0, 1, 2, 3')
 parser.add_argument('--batch_size', type = int, default = 1, help = 'Batch size. i.e 1 to any number')
-parser.add_argument('--feature_type', type = str, default = 'train', help = 'train, test')
 args = parser.parse_args() 
 
 def load_data():
@@ -52,9 +51,9 @@ def feature_extractor(test_input, device):
     output_feature = features_ext(test_input.to(device))['avgpool']
     return output_feature
 
-def data_to_pickle(pickle_file_name, dataX, dataY):    
+def data_to_pickle(pickle_file_name, X_train, y_train, X_test, y_test):    
     with open(os.path.join(args.data_path, pickle_file_name), 'wb') as file:  
-        data_store = {'dataX': dataX, 'dataY': dataY}
+        data_store = {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test}
         pickle.dump(data_store, file)
 
 def train_features(X_train, y_train, device):
@@ -67,8 +66,8 @@ def train_features(X_train, y_train, device):
         output_feature = output_feature.squeeze(2).squeeze(2).squeeze(0).detach().cpu()
         trainX.append(output_feature)
         trainY.append(target)       
-        # if batchIndex == 3:
-        #     break        
+        if batchIndex % 500 == 0 :
+            print('train samples processed: ', batchIndex)        
     trainX = torch.stack((trainX), dim=0)
     trainX = trainX.numpy()
     trainY = torch.stack((trainY), dim=0)  
@@ -84,13 +83,13 @@ def test_features(X_test, y_test, device):
     testY = []
     for batchIndex, (data, target) in enumerate(testload):
         output_feature = feature_extractor(data, device)        
-        output_feature = output_feature.squeeze(2).squeeze(2).squeeze(0)
+        output_feature = output_feature.squeeze(2).squeeze(2).squeeze(0).detach().cpu()
         testX.append(output_feature)                 
         testY.append(target) 
-        # if batchIndex == 3:
-        #     break
+        if batchIndex % 500 == 0 :
+            print('test samples processed: ', batchIndex) 
     testX = torch.stack((testX), dim=0)
-    testX = testX.detach().cpu().numpy()
+    testX = testX.numpy()
     testY = torch.stack((testY), dim=0)  
     testY = testY.reshape(-1).t() 
     testX = np.array(testX, dtype=np.float32)
@@ -100,16 +99,8 @@ def test_features(X_test, y_test, device):
 if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
     X_train, y_train, X_test, y_test = load_data() 
-       
-    if args.feature_type == 'train':
-        X_train, y_train = train_features(X_train, y_train, device)
-        data_to_pickle('train_features_'+str(args.client_number)+'_'+args.data_file_name, X_train, y_train)
-        print('train features extracted!')
-        
-    if args.feature_type == 'test':
-        X_test, y_test = test_features(X_test, y_test, device)
-        data_to_pickle('train_features_'+str(args.client_number)+'_'+args.data_file_name, X_test, y_test)
-        print('test features extracted!')
-    
-    
-        
+    X_train, y_train = train_features(X_train, y_train, device)        
+    print('=================train features extracted!===============')
+    X_test, y_test = test_features(X_test, y_test, device)
+    print('==============test features extracted!==================')
+    data_to_pickle('features_'+str(args.client_number)+'_'+args.data_file_name, X_train, y_train, X_test, y_test)
