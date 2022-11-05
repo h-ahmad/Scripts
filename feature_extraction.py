@@ -17,7 +17,8 @@ import numpy as np
 parser = argparse.ArgumentParser(description = 'Main Script')
 parser.add_argument('--data_path', type = str, default = './data', help = 'Main path to the dataset')
 parser.add_argument('--data_file_name', type = str, default = 'cifar10_train_test.pkl', help = 'Pickle file name')
-parser.add_argument('--batch_size', type = int, default = 50, help = 'Batch size. i.e 1 to any number')
+parser.add_argument('--client_number', type = int, default = 0, help = '0, 1, 2, 3')
+parser.add_argument('--batch_size', type = int, default = 1, help = 'Batch size. i.e 1 to any number')
 args = parser.parse_args() 
 
 def load_data():
@@ -27,7 +28,7 @@ def load_data():
         X_train, y_train, X_test, y_test = data_store['X_train'], data_store['y_train'], data_store['X_test'], data_store['y_test']
     
     # if 4 dimensions (4-th dimension is for a client)
-    node_number = 3
+    node_number = args.client_number
     X_train = X_train[node_number]
     y_train = y_train[node_number].squeeze(1)
     y_test = y_test.squeeze(1)
@@ -35,6 +36,8 @@ def load_data():
     # data is numpy array, convert to tensor
     X_train = torch.from_numpy(X_train)
     y_train = torch.from_numpy(y_train)
+    X_test = torch.from_numpy(X_test)
+    y_test = torch.from_numpy(y_test)
     
     return (X_train, y_train, X_test, y_test)
 
@@ -56,18 +59,30 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
     X_train, y_train, X_test, y_test = load_data()    
     
-    trainset = torch.utils.data.TensorDataset(X_train, y_train)    
-    trainload = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=False, num_workers=0) 
+    trainset = torch.utils.data.TensorDataset(X_train, y_train)
+    testset = torch.utils.data.TensorDataset(X_test, y_test)    
+    trainload = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=0) 
+    testload = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, shuffle=True, num_workers=0) 
     
     trainX = []
     trainY = []
     for batchIndex, (data, target) in enumerate(trainload):
-        output_feature = feature_extractor(data, device)
-        
+        output_feature = feature_extractor(data, device)        
         output_feature = output_feature.squeeze(2).squeeze(2)
         output_feature = output_feature.detach().cpu().numpy()
         trainX.append(output_feature) 
         trainY.append(target.numpy()) 
     trainX = np.array(trainX, dtype=np.float32)
     trainY = np.array(trainY, dtype=np.int_)
-    data_to_pickle('features_client4_'+args.data_file_name, trainX, trainY, X_test, y_test)
+    
+    testX = []
+    testY = []
+    for batchIndex, (data, target) in enumerate(testload):
+        output_feature = feature_extractor(data, device)        
+        output_feature = output_feature.squeeze(2).squeeze(2)
+        output_feature = output_feature.detach().cpu().numpy()
+        testX.append(output_feature) 
+        testY.append(target.numpy()) 
+    testX = np.array(testX, dtype=np.float32)
+    testY = np.array(testY, dtype=np.int_)
+    data_to_pickle('features_client'+args.client_number+'_'+args.data_file_name, trainX, trainY, testX, testY)
