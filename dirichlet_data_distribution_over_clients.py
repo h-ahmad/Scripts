@@ -15,11 +15,11 @@ import pickle
 
 parser = argparse.ArgumentParser(description = 'Main Script')
 parser.add_argument('--data_path', type = str, default = './data', help = 'Path to the main directory')
-parser.add_argument('--dataset_name', type = str, default = 'cifar10', help = 'cifar10, mnist')
+parser.add_argument('--dataset_name', type = str, default = 'mnist', help = 'cifar10, mnist')
 parser.add_argument('--number_of_classes', type = int, default = 10, help = 'Number of classes in the given dataset')
-parser.add_argument('--image_height', type = int, default = 32, help = 'Height of a single image in dataset')
-parser.add_argument('--image_width', type = int, default = 32, help = 'Width of a single image in dataset')
-parser.add_argument('--image_channel', type = int, default = 3, help = 'Channel of a single image in dataset')
+parser.add_argument('--image_height', type = int, default = 28, help = 'Height of a single image in dataset')
+parser.add_argument('--image_width', type = int, default = 28, help = 'Width of a single image in dataset')
+parser.add_argument('--image_channel', type = int, default = 1, help = 'Channel of a single image in dataset')
 parser.add_argument('--number_of_clients', type = int, default = 4, help = 'Total nodes to which dataset is divided')
 parser.add_argument('--distribution_method', type = str, default = 'non_iid', help = 'iid, non_iid')
 parser.add_argument('--dirichlet_alpha', type = float, default = 0.5, help = 'Value of alpha for dirichlet distribution')
@@ -28,7 +28,9 @@ args = parser.parse_args()
 
 def cifar10():
     transform = transforms.Compose([transforms.ToTensor(),
-                                    transforms.Normalize(mean=[0.491, 0.482, 0.447], std=[0.247, 0.243, 0.262])])
+                                    # transforms.Normalize(mean=[0.491, 0.482, 0.447], 
+                                                         # std=[0.247, 0.243, 0.262])
+                                    ])
     trainset = torchvision.datasets.CIFAR10(root=args.data_path,
                                           train=True , download=True, transform=transform)
     testset = torchvision.datasets.CIFAR10(root=args.data_path,
@@ -37,7 +39,9 @@ def cifar10():
     testload = torch.utils.data.DataLoader(testset, batch_size=10000, shuffle=False, num_workers=1)
     return trainload, testload
 def mnist():
-    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+    transform = transforms.Compose([transforms.ToTensor(), 
+                                    # transforms.Normalize((0.1307,), (0.3081,))
+                                    ])
     trainset = torchvision.datasets.MNIST(root=args.data_path, 
                                         train=True , download=True, transform=transform)
     testset = torchvision.datasets.MNIST(root=args.data_path, 
@@ -150,7 +154,7 @@ def data_distribution():
     np.save(os.path.join(args.data_path, os.path.join(file_path, 'y_test.npy')), y_test)
     
     # if you want to save a single pickle file
-    with open(os.path.join(args.data_path, os.path.join(file_path, 'train_test.pkl')), 'wb') as file:  
+    with open(os.path.join(args.data_path, os.path.join(file_path, args.dataset_name+'_train_test.pkl')), 'wb') as file:  
             data_store = {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test}
             pickle.dump(data_store, file)
     print('Data saved on the location: ', os.path.join(args.data_path, file_path))
