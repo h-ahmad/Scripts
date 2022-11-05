@@ -19,6 +19,7 @@ parser.add_argument('--data_path', type = str, default = './data', help = 'Main 
 parser.add_argument('--data_file_name', type = str, default = 'cifar10_train_test.pkl', help = 'Pickle file name')
 parser.add_argument('--client_number', type = int, default = 0, help = '0, 1, 2, 3')
 parser.add_argument('--batch_size', type = int, default = 1, help = 'Batch size. i.e 1 to any number')
+parser.add_argument('--feature_type', type = str, default = 'train', help = 'train, test')
 args = parser.parse_args() 
 
 def load_data():
@@ -43,6 +44,7 @@ def load_data():
 
 def feature_extractor(test_input, device):
     model = resnet18(pretrained=True).to(device)
+    # layer = model._modules.get('avgpool')
     model.eval()
     nodes, eval_nodes = get_graph_node_names(model)
     # print('model nodes:', nodes)
@@ -50,41 +52,64 @@ def feature_extractor(test_input, device):
     output_feature = features_ext(test_input.to(device))['avgpool']
     return output_feature
 
-def data_to_pickle(pickle_file_name, X_train, y_train, X_test, y_test):    
+def data_to_pickle(pickle_file_name, dataX, dataY):    
     with open(os.path.join(args.data_path, pickle_file_name), 'wb') as file:  
-        data_store = {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test}
+        data_store = {'dataX': dataX, 'dataY': dataY}
         pickle.dump(data_store, file)
 
-if __name__ == '__main__':
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    X_train, y_train, X_test, y_test = load_data()    
-    
+def train_features(X_train, y_train, device):
     trainset = torch.utils.data.TensorDataset(X_train, y_train)
-    testset = torch.utils.data.TensorDataset(X_test, y_test)    
     trainload = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=0) 
-    testload = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, shuffle=True, num_workers=0) 
-    
     trainX = []
     trainY = []
     for batchIndex, (data, target) in enumerate(trainload):
         output_feature = feature_extractor(data, device)        
-        output_feature = output_feature.squeeze(2).squeeze(2)
-        output_feature = output_feature.detach().cpu().numpy()
-        trainX.append(output_feature) 
-        trainY.append(target.numpy()) 
-        break
+        output_feature = output_feature.squeeze(2).squeeze(2).squeeze(0).detach().cpu()
+        trainX.append(output_feature)
+        trainY.append(target)       
+        # if batchIndex == 3:
+        #     break        
+    trainX = torch.stack((trainX), dim=0)
+    trainX = trainX.numpy()
+    trainY = torch.stack((trainY), dim=0)  
+    trainY = trainY.reshape(-1).t()   
     trainX = np.array(trainX, dtype=np.float32)
     trainY = np.array(trainY, dtype=np.int_)
-    
+    return (trainX, trainY)
+
+def test_features(X_test, y_test, device):
+    testset = torch.utils.data.TensorDataset(X_test, y_test)  
+    testload = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, shuffle=True, num_workers=0) 
     testX = []
     testY = []
     for batchIndex, (data, target) in enumerate(testload):
         output_feature = feature_extractor(data, device)        
-        output_feature = output_feature.squeeze(2).squeeze(2)
-        output_feature = output_feature.detach().cpu().numpy()
-        testX.append(output_feature) 
-        testY.append(target.numpy()) 
-        break
+        output_feature = output_feature.squeeze(2).squeeze(2).squeeze(0)
+        testX.append(output_feature)                 
+        testY.append(target) 
+        # if batchIndex == 3:
+        #     break
+    testX = torch.stack((testX), dim=0)
+    testX = testX.detach().cpu().numpy()
+    testY = torch.stack((testY), dim=0)  
+    testY = testY.reshape(-1).t() 
     testX = np.array(testX, dtype=np.float32)
     testY = np.array(testY, dtype=np.int_)
-    data_to_pickle('features_client'+str(args.client_number)+'_'+args.data_file_name, trainX, trainY, testX, testY)
+    return (testX, testY)
+
+if __name__ == '__main__':
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    X_train, y_train, X_test, y_test = load_data() 
+       
+    if args.feature_type == 'train':
+        X_train, y_train = train_features(X_train, y_train, device)
+        data_to_pickle('train_features_'+str(args.client_number)+'_'+args.data_file_name, X_train, y_train)
+        print('train features extracted!')
+        
+    if args.feature_type == 'test':
+        X_test, y_test = test_features(X_test, y_test, device)
+        data_to_pickle('train_features_'+str(args.client_number)+'_'+args.data_file_name, X_test, y_test)
+        print('test features extracted!')
+    
+    
+        
