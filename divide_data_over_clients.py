@@ -28,7 +28,8 @@ def main():
         print(data_store.keys())     
         if args.is_data_distributed == True:
             data_store['X_train'] = data_store['X_train'][args.this_client_number]
-            data_store['y_train'] = data_store['y_train'][args.this_client_number]
+            data_store['y_train'] = data_store['y_train'][args.this_client_number].reshape(-1)
+            data_store['y_test'] = data_store['y_test'].reshape(-1)
             
         if args.dataset_name == 'cifar10':
             data_store['X_train'] = torch.from_numpy(data_store['X_train'])
