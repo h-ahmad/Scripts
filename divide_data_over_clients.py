@@ -10,24 +10,34 @@ import pickle
 import cv2
 import csv
 import argparse
+import torch
 
 parser = argparse.ArgumentParser(description = 'Main Script')
 parser.add_argument('--data_path', type = str, default = './data', help = 'Main path to the dataset')
 parser.add_argument('--dataset_name', type = str, default = 'cifar10', help = 'cifar10, mnist')
 parser.add_argument('--data_file_name', type = str, default = 'cifar10_train_test.pkl', help = 'Pickle file name')
 parser.add_argument('--number_of_clients', type = int, default = 4, help = 'Number of client to which data is divided')
+parser.add_argument('--is_data_distributed', type = bool, default = True, help = 'True if data is already iid or non-iid distributed over clients at first index, False otherwise')
+parser.add_argument('--this_client_number', type = int, default = 0, help = 'If is_data_distributed flag is True, then set current client number from 0 to any positive integer')
 args = parser.parse_args() 
 
 def main():
     with open(os.path.join(args.data_path, args.data_file_name), 'rb') as file:
         data_store = pickle.load(file)
         print(data_store.keys())     
+        if args.is_data_distributed == True:
+            data_store['X_train'] = torch.from_numpy(data_store['X_train'][args.this_client_number]).permute(0, 2, 3, 1).numpy()
+            data_store['y_train'] = data_store['y_train'][args.this_client_number]
+            data_store['X_test'] = torch.from_numpy(data_store['X_test']).permute(0, 2, 3, 1).numpy()
         print('X_train: ', data_store['X_train'].shape)
         print('y_train: ', data_store['y_train'].shape)
         print('X_test: ', data_store['X_test'].shape)
         print('y_test: ', data_store['y_test'].shape)        
     total_data_count = data_store['y_train'].shape[0]
-    client_data = int(total_data_count/args.number_of_clients)
+    if args.is_data_distributed == True:
+        client_data = total_data_count
+    else:
+        client_data = int(total_data_count/args.number_of_clients)
     # save multiple train data for multiple clients given
     j = 0
     for i in range(total_data_count):
@@ -61,4 +71,4 @@ def main():
     csv_file.close()
 
 if __name__ == '__main__':
-  main()
+    main()
