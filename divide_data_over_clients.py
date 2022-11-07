@@ -18,7 +18,7 @@ parser.add_argument('--dataset_name', type = str, default = 'cifar10', help = 'c
 parser.add_argument('--data_file_name', type = str, default = 'cifar10_train_test.pkl', help = 'Pickle file name')
 parser.add_argument('--number_of_clients', type = int, default = 4, help = 'Number of client to which data is divided')
 parser.add_argument('--is_data_distributed', type = bool, default = True, help = 'True if data is already iid or non-iid distributed over clients at first index, False otherwise')
-parser.add_argument('--this_client_number', type = int, default = 0, help = 'If is_data_distributed flag is True, then set current client number from 0 to any positive integer')
+parser.add_argument('--this_client_number', type = int, default = 3, help = 'If is_data_distributed flag is True, then set current client number from 0 to any positive integer')
 args = parser.parse_args() 
 
 def main():
@@ -43,9 +43,14 @@ def main():
     for i in range(total_data_count):
         if i % client_data == 0:
             j = j + 1
-            os.makedirs(os.path.join(args.data_path, 'client'+str(j)+'/'), exist_ok = True)
-            data_store_path = os.path.join(args.data_path, 'client'+str(j)+'/')   
-            csv_file = open(os.path.join(args.data_path, str(j)+'.csv'), 'w', newline='')
+            if args.is_data_distributed == True:
+                os.makedirs(os.path.join(args.data_path, 'client'+str(args.this_client_number)+'/'), exist_ok = True)
+                data_store_path = os.path.join(args.data_path, 'client'+str(args.this_client_number)+'/')   
+                csv_file = open(os.path.join(args.data_path, str(args.this_client_number)+'.csv'), 'w', newline='')
+            else:
+                os.makedirs(os.path.join(args.data_path, 'client'+str(j)+'/'), exist_ok = True)
+                data_store_path = os.path.join(args.data_path, 'client'+str(j)+'/')   
+                csv_file = open(os.path.join(args.data_path, str(j)+'.csv'), 'w', newline='')                 
             writer = csv.writer(csv_file)      
         if args.dataset_name == 'cifar10':
             image = data_store['X_train'][i]  # for numpy . i.e CIFAR10
