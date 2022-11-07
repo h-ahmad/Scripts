@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov  2 11:01:10 2022
-
 @author: hussain
 """
 
@@ -10,12 +9,17 @@ import os
 import pickle
 import cv2
 import csv
+import argparse
+
+parser = argparse.ArgumentParser(description = 'Main Script')
+parser.add_argument('--data_path', type = str, default = './data', help = 'Main path to the dataset')
+parser.add_argument('--dataset_name', type = str, default = 'cifar10', help = 'cifar10, mnist')
+parser.add_argument('--data_file_name', type = str, default = 'cifar10_train_test.pkl', help = 'Pickle file name')
+parser.add_argument('--number_of_clients', type = int, default = 4, help = 'Number of client to which data is divided')
+args = parser.parse_args() 
 
 def main():
-    data_path = 'data/'
-    dataset_name = 'mnist'  # (cifar10, mnist) pickle file name
-    number_of_clients = 4
-    with open(os.path.join(data_path, dataset_name+'.pkl'), 'rb') as file:
+    with open(os.path.join(args.data_path, args.data_file_name), 'rb') as file:
         data_store = pickle.load(file)
         print(data_store.keys())     
         print('X_train: ', data_store['X_train'].shape)
@@ -23,34 +27,34 @@ def main():
         print('X_test: ', data_store['X_test'].shape)
         print('y_test: ', data_store['y_test'].shape)        
     total_data_count = data_store['y_train'].shape[0]
-    client_data = int(total_data_count/number_of_clients)
+    client_data = int(total_data_count/args.number_of_clients)
     # save multiple train data for multiple clients given
     j = 0
     for i in range(total_data_count):
         if i % client_data == 0:
             j = j + 1
-            os.makedirs(os.path.join(data_path, 'client'+str(j)+'/'), exist_ok = True)
-            data_store_path = os.path.join(data_path, 'client'+str(j)+'/')   
-            csv_file = open(os.path.join(data_path, str(j)+'.csv'), 'w', newline='')
+            os.makedirs(os.path.join(args.data_path, 'client'+str(j)+'/'), exist_ok = True)
+            data_store_path = os.path.join(args.data_path, 'client'+str(j)+'/')   
+            csv_file = open(os.path.join(args.data_path, str(j)+'.csv'), 'w', newline='')
             writer = csv.writer(csv_file)      
-        if dataset_name == 'cifar10':
+        if args.dataset_name == 'cifar10':
             image = data_store['X_train'][i]  # for numpy . i.e CIFAR10
-        else:
+        if args.dataset_name == 'mnist':
             image = data_store['X_train'][i].numpy()  # for tensor . i.e MNIST
         cv2.imwrite(os.path.join(data_store_path, str(i)+'.png'), image)                
         writer.writerow([str(i)+'.png', data_store['y_train'][i]])
     csv_file.close()
     # save a single test data for all clients
-    csv_file = open(os.path.join(data_path, 'test.csv'), 'w', newline='')
+    csv_file = open(os.path.join(args.data_path, 'test.csv'), 'w', newline='')
     writer = csv.writer(csv_file)     
-    os.makedirs(os.path.join(data_path, 'test'), exist_ok = True)
-    data_store_path = os.path.join(data_path, 'test')
-    csv_file = open(os.path.join(data_path, 'test.csv'), 'w', newline='')
+    os.makedirs(os.path.join(args.data_path, 'test'), exist_ok = True)
+    data_store_path = os.path.join(args.data_path, 'test')
+    csv_file = open(os.path.join(args.data_path, 'test.csv'), 'w', newline='')
     writer = csv.writer(csv_file)    
     for k in range(data_store['y_test'].shape[0]):
-        if dataset_name == 'cifar10':
+        if args.dataset_name == 'cifar10':
             image = data_store['X_test'][k]  # for numpy . i.e CIFAR10
-        else:
+        if args.dataset_name == 'mnist':
             image = data_store['X_test'][k].numpy()  # for tensor . i.e MNIST
         cv2.imwrite(os.path.join(data_store_path, str(k)+'.png'), image)
         writer.writerow([str(k)+'.png', data_store['y_test'][k]])
