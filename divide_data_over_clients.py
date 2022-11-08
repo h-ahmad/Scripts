@@ -15,8 +15,8 @@ from torchvision.utils import save_image
 
 parser = argparse.ArgumentParser(description = 'Main Script')
 parser.add_argument('--data_path', type = str, default = './data', help = 'Main path to the dataset')
-parser.add_argument('--dataset_name', type = str, default = 'cifar10', help = 'cifar10, mnist')
-parser.add_argument('--data_file_name', type = str, default = 'cifar10_train_test.pkl', help = 'Pickle file name')
+parser.add_argument('--dataset_name', type = str, default = 'mnist', help = 'cifar10, mnist')
+parser.add_argument('--data_file_name', type = str, default = 'mnist_train_test.pkl', help = 'Pickle file name')
 parser.add_argument('--number_of_clients', type = int, default = 4, help = 'Number of client to which data is divided')
 parser.add_argument('--is_data_distributed', type = bool, default = True, help = 'True if data is already iid or non-iid distributed over clients at first index, False otherwise')
 parser.add_argument('--this_client_number', type = int, default = 0, help = 'If is_data_distributed flag is True, then set current client number from 0 to any positive integer')
@@ -30,10 +30,9 @@ def main():
             data_store['X_train'] = data_store['X_train'][args.this_client_number]
             data_store['y_train'] = data_store['y_train'][args.this_client_number].reshape(-1)
             data_store['y_test'] = data_store['y_test'].reshape(-1)
-            
-        if args.dataset_name == 'cifar10':
-            data_store['X_train'] = torch.from_numpy(data_store['X_train'])
-            data_store['X_test'] = torch.from_numpy(data_store['X_test'])
+        # convert numpy arrays to tensors
+        data_store['X_train'] = torch.from_numpy(data_store['X_train'])
+        data_store['X_test'] = torch.from_numpy(data_store['X_test'])
         
         print('X_train: ', data_store['X_train'].shape)
         print('y_train: ', data_store['y_train'].shape)
