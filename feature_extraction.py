@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Nov  3 09:22:04 2022
-
 @author: hussain
 """
 
@@ -16,7 +15,8 @@ import numpy as np
 
 parser = argparse.ArgumentParser(description = 'Main Script')
 parser.add_argument('--data_path', type = str, default = './data', help = 'Main path to the dataset')
-parser.add_argument('--data_file_name', type = str, default = 'cifar10_train_test.pkl', help = 'Pickle file name')
+parser.add_argument('--dataset_name', type = str, default = 'mnist', help = 'cifar10, mnist')
+parser.add_argument('--data_file_name', type = str, default = 'mnist_train_test.pkl', help = 'Pickle file name')
 parser.add_argument('--client_number', type = int, default = 0, help = '0, 1, 2, 3')
 parser.add_argument('--batch_size', type = int, default = 1, help = 'Batch size. i.e 1 to any number')
 args = parser.parse_args() 
@@ -43,7 +43,7 @@ def load_data():
 
 def feature_extractor(test_input, device):
     model = resnet18(pretrained=True).to(device)
-    # layer = model._modules.get('avgpool')
+    # layer = model._modules.get('avgpool')    
     model.eval()
     nodes, eval_nodes = get_graph_node_names(model)
     # print('model nodes:', nodes)
@@ -61,8 +61,10 @@ def train_features(X_train, y_train, device):
     trainload = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=0) 
     trainX = []
     trainY = []
-    for batchIndex, (data, target) in enumerate(trainload):
-        output_feature = feature_extractor(data, device)        
+    for batchIndex, (data, target) in enumerate(trainload):    
+        if args.dataset_name == 'mnist':
+            data = data.expand(-1, 3, -1, -1)    
+        output_feature = feature_extractor(data, device)             
         output_feature = output_feature.squeeze(2).squeeze(2).squeeze(0).detach().cpu()
         trainX.append(output_feature)
         trainY.append(target)       
@@ -98,7 +100,7 @@ def test_features(X_test, y_test, device):
 
 if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    X_train, y_train, X_test, y_test = load_data() 
+    X_train, y_train, X_test, y_test = load_data()     
     X_train, y_train = train_features(X_train, y_train, device)        
     print('=================train features extracted!===============')
     X_test, y_test = test_features(X_test, y_test, device)
