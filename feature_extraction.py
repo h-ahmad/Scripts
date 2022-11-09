@@ -15,7 +15,7 @@ import numpy as np
 
 parser = argparse.ArgumentParser(description = 'Main Script')
 parser.add_argument('--data_path', type = str, default = './data', help = 'Main path to the dataset')
-parser.add_argument('--dataset_name', type = str, default = 'mnist', help = 'cifar10, mnist')
+parser.add_argument('--number_of_channels', type = int, default = 1, help = '1, 3')
 parser.add_argument('--data_file_name', type = str, default = 'mnist_train_test.pkl', help = 'Pickle file name')
 parser.add_argument('--client_number', type = int, default = 0, help = '0, 1, 2, 3')
 parser.add_argument('--batch_size', type = int, default = 1, help = 'Batch size. i.e 1 to any number')
@@ -62,8 +62,8 @@ def train_features(X_train, y_train, device):
     trainX = []
     trainY = []
     for batchIndex, (data, target) in enumerate(trainload):    
-        if args.dataset_name == 'mnist':
-            data = data.expand(-1, 3, -1, -1)    
+        if args.number_of_channels == 1:
+            data = data.expand(-1, 3, -1, -1)  # convert from 1 channel to 3 channels   
         output_feature = feature_extractor(data, device)             
         output_feature = output_feature.squeeze(2).squeeze(2).squeeze(0).detach().cpu()
         trainX.append(output_feature)
