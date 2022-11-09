@@ -84,6 +84,8 @@ def test_features(X_test, y_test, device):
     testX = []
     testY = []
     for batchIndex, (data, target) in enumerate(testload):
+        if args.number_of_channels == 1:
+            data = data.expand(-1, 3, -1, -1)  # convert from 1 channel to 3 channels 
         output_feature = feature_extractor(data, device)        
         output_feature = output_feature.squeeze(2).squeeze(2).squeeze(0).detach().cpu()
         testX.append(output_feature)                 
