@@ -18,7 +18,7 @@ parser.add_argument('--data_path', type = str, default = './data', help = 'Main 
 parser.add_argument('--dataset_name', type = str, default = 'cifar10', help = 'cifar10, mnist')
 parser.add_argument('--data_file_name', type = str, default = 'cifar10_train_test.pkl', help = 'Pickle file name')
 parser.add_argument('--number_of_clients', type = int, default = 4, help = 'Number of client to which data is divided')
-parser.add_argument('--is_data_distributed', type = bool, default = True, help = 'True if data is already iid or non-iid distributed over clients at first index, False otherwise')
+parser.add_argument('--is_data_distributed', type = bool, default = False, help = 'True if data is already iid or non-iid distributed over clients at first index and you want to split individually, False otherwise')
 parser.add_argument('--this_client_number', type = int, default = 0, help = 'If is_data_distributed flag is True, then set current client number from 0 to any positive integer')
 parser.add_argument('--output_type', type = str, default = 'pickle', help = 'pickle, seperate')
 args = parser.parse_args() 
