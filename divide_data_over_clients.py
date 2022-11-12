@@ -82,6 +82,11 @@ def folder_images_csv_labels():
 
 def data_to_pickle_file():
     X_train, y_train, X_test, y_test, client_data = load_data()
+    X_train = X_train.numpy()
+    y_train = y_train.squeeze(2)
+    X_test = X_test.numpy()    
+    y_test = y_test.squeeze(1)
+    
     # save multiple train data for multiple clients given
     if args.is_data_distributed == True:        
         with open(os.path.join(args.data_path, 'client_'+str(args.this_client_number)+'_train_test.pkl'), 'wb') as file:  
