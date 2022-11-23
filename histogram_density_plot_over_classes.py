@@ -66,6 +66,7 @@ def scatter_plot(classes_name):
     for i, txt in enumerate(classes):
         ax.annotate(classes[i], (classes[i], counts[i]))        
     
+    plt.title('Class distribution in training set')
     plt.show()
     
     
