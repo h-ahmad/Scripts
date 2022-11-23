@@ -17,6 +17,7 @@ parser.add_argument('--data_path', type = str, default = 'data/cifar10_4clients_
 parser.add_argument('--dataset_name', type = str, default = 'cifar10', help = 'cifar10, mnist')
 parser.add_argument('--file_name', type = str, default = 'mnist_client3.pkl', help = 'File name with extension')
 parser.add_argument('--file_format', type = str, default = 'numpy', help = 'pickle, numpy')
+parser.add_argument('--graph_type', type = str, default = 'distribution', help = 'scatter, distribution')
 args = parser.parse_args() 
 
 
@@ -73,7 +74,7 @@ if __name__ == '__main__':
         classes_name = ['Airplane', 'Automobile', 'Bird', 'Cat', 'Deer', 'Dog', 'Frog', 'Horse', 'Ship', 'Truck']
     if args.dataset_name == 'mnist':
         classes_name = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-        
-    # call one method from following at a time
-    class_distribution(classes_name)    
-    scatter_plot(classes_name)
+    if args.graph_type == 'distribution':
+        class_distribution(classes_name)
+    if args.graph_type == 'scatter':
+        scatter_plot(classes_name)
