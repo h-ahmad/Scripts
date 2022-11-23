@@ -42,6 +42,7 @@ def class_distribution(classes_name):
     bars = plt.barh(classes_name, counts)
     plt.bar_label(bars, label_type='center', color='white', labels=[f'{x:,}' for x in bars.datavalues])
     plt.title('Class distribution in training set')
+    plt.savefig(os.path.join(args.data_path, "chart.pdf"), format="pdf", bbox_inches="tight")
 
 def scatter_plot(classes_name):
     if args.file_format == 'pickle':
@@ -68,6 +69,7 @@ def scatter_plot(classes_name):
     
     plt.title('Class distribution in training set')
     plt.show()
+    plt.savefig(os.path.join(args.data_path, "chart.pdf"), format="pdf", bbox_inches="tight")
     
     
 if __name__ == '__main__':
