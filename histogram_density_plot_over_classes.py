@@ -40,7 +40,7 @@ def class_distribution(classes_name):
     
     classes, counts = np.unique(y_train, return_counts=True)
     bars = plt.barh(classes_name, counts)
-    plt.bar_label(bars, label_type='center', labels=[f'{x:,}' for x in bars.datavalues])
+    plt.bar_label(bars, label_type='center', color='white', labels=[f'{x:,}' for x in bars.datavalues])
     plt.title('Class distribution in training set')
 
 def scatter_plot(classes_name):
