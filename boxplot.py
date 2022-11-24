@@ -31,6 +31,7 @@ data = [data_cnn_node1, data_resnet_node1, data_cnn_node2, data_resnet_node2, da
 fig = plt.figure(figsize =(10, 7))
 ax = fig.add_axes([0, 0, 1, 1])
 bp = ax.boxplot(data)
+plt.ylabel('Test accuracy')
 plt.xticks([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], ["N1_CNN2", "N1_Res", "N2_CNN2", "N2_Res", "N3_CNN2", "N3_Res", "N4_CNN2", "N4_Res", "SWARM_CNN2", "SWARM_Res"], rotation=10)
 plt.savefig("boxplot.pdf", format="pdf", bbox_inches="tight")
 plt.show()
