@@ -14,6 +14,8 @@ import random
 
 fig, axs = plt.subplots(2, 4, figsize=(15, 8))
 plt.setp(axs, xticklabels=['N1', 'N2', 'N3', 'N4', 'SWARM'])
+plt.subplots_adjust(hspace=0.3)
+
 epoch = 100
 
 
