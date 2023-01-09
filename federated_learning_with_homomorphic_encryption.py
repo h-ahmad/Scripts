@@ -137,8 +137,12 @@ def gen_keys():
     keys['HE'] = HE
     keys['con'] = HE.to_bytes_context()
     keys['pk'] = HE.to_bytes_public_key()
-    
     filename =  "public_key.pickle"
+    with open(filename, 'wb') as handle:
+        pickle.dump(keys, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        
+    keys['sk'] = HE.to_bytes_secret_key()
+    filename =  "private_key.pickle"
     with open(filename, 'wb') as handle:
         pickle.dump(keys, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return HE
@@ -259,9 +263,11 @@ def decrypt_gradients(filename):
             weight=[]
             for j in range(len(weights)):
                 weight.append(dec_weights['c_'+str(i)+'_'+str(j)])
+            print('weight:', torch.Tensor(weight).shape)
+            a = model[i].weight.flatten().detach().cpu()
+            print('a.shape: ', a.shape)
             # model.layers[i].set_weights(weight)
-            print('appended list: ', torch.FloatTensor(weight).shape)  # torch.Size([4, 1, 5, 5, 4096])
-            model.modules()[i].weight = weight
+            # print('appended list: ', torch.FloatTensor(weight).shape)  # torch.Size([4, 1, 5, 5, 4096])
     torch.save(model, os.path.join(args.client_model_path, 'global_model.pt'))
     return model        
     
@@ -278,7 +284,6 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters())
     loss_fn = torch.nn.CrossEntropyLoss()
         
-    # federated learning        
 
     torch.save(model, os.path.join(args.client_model_path, 'global_model.pt'))                      
     num_of_clients = 3
@@ -286,22 +291,15 @@ if __name__ == '__main__':
     #     train_clients(num_client)
     
     HE=gen_keys()
-    keys ={}
-    keys['HE'] = HE
-    keys['con'] = HE.to_bytes_context()
-    keys['pk'] = HE.to_bytes_public_key()
-    keys['sk'] = HE.to_bytes_secret_key()
-    filename =  "private_key.pickle"
-    with open(filename, 'wb') as handle:
-        pickle.dump(keys, handle, protocol=pickle.HIGHEST_PROTOCOL)
         
-    for num_client in range(num_of_clients):
-        print('Encryption of client: ', num_client+1)
-        client_model_path = os.path.join(args.client_model_path, str(num_client+1)+'.pt')
-        client_model = torch.load(client_model_path)
-        client_model.eval() 
-        encrypt_gradients(client_model, num_client)
-    # Aggregate gradients of all models
+# =============================================================================
+#     for num_client in range(num_of_clients):
+#         print('Encryption of client: ', num_client+1)
+#         client_model_path = os.path.join(args.client_model_path, str(num_client+1)+'.pt')
+#         client_model = torch.load(client_model_path)
+#         client_model.eval() 
+#         encrypt_gradients(client_model, num_client)
+# =============================================================================
     print('<===================Model Aggregation==================>')
     global_model_dict, saved_path = aggregate_encrypted_gradients(num_of_clients)
     print('<===================Decryption==================>')
