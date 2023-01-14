@@ -289,3 +289,5 @@ if __name__ == '__main__':
     global_model_dict, saved_path = aggregate_encrypted_gradients(num_of_clients)
     print('<===================Decryption==================>')
     decrypt_gradients(saved_path)
+    print('Decryption successfule!')
+    print('Global model is saved at: ', args.client_model_path)
