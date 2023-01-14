@@ -66,7 +66,7 @@ class ModelCreation(nn.Module):
             nn.Flatten(),
             nn.Linear(192, 10),
         )
-        return LeNet1    
+        return LeNet1
 
 def load_data():
 # =============================================================================
@@ -169,17 +169,16 @@ def encrypt_gradients(client_model, num_client):
     for i in range(len(layers_list)):            
         if hasattr(layers_list[i], 'weight') and type(layers_list[i]) != torch.nn.modules.batchnorm.BatchNorm2d:                
             print('processing: ', layers_list[i])
-            weights = layers_list[i].weight
-            # if(type(layers_list[i]) == torch.nn.modules.linear.Linear):            
-            for j in range(len(weights)):       # 512                
-                weight = np.asarray(weights[j].detach().cpu())
-                shape = weight.shape
-                weight = weight.flatten()
-                array= np.empty(len(weight),dtype=PyCtxt)             
-                for k in np.arange(len(weight)):   # 4096
-                    array[k] = HE.encrypt(weight[k])
-                enc_array = array.reshape(shape)
-                encrypted_weights['c_'+str(i)+'_'+str(j)]=enc_array
+            weights = layers_list[i].weight            
+            # if(type(layers_list[i]) == torch.nn.modules.linear.Linear): 
+            weight = np.asarray(weights.detach().cpu())
+            shape = weight.shape
+            weight = weight.flatten()
+            array= np.empty(len(weight),dtype=PyCtxt)
+            for k in np.arange(len(weight)):
+                array[k] = HE.encrypt(weight[k])  
+            enc_array = array.reshape(shape)
+            encrypted_weights['c_'+str(i)]=enc_array
             print('processed layer: ', layers_list[i])
     filename =  os.path.join(args.client_model_path, "client_" + str(num_client+1)+ ".pickle")
     dic = {}
@@ -221,7 +220,7 @@ def aggregate_encrypted_gradients(num_of_clients):
                 dct_weights[key] = np.zeros_like(arr,dtype=PyCtxt) # array/matrix of zeros            
             dct_weights[key] = enc_weights[key] + dct_weights[key]
     for key in dct_weights:
-        dct_weights[key]= dct_weights[key]*denom #c_denom  
+        dct_weights[key]= dct_weights[key]*denom #c_denom
     dic = {}
     dic['key']=HE
     dic['val']=dct_weights
@@ -234,19 +233,10 @@ def decrypt_gradients(filename):
     HE = get_secret_key()
     enc_weights={}
     dec_weights={}
-    weights={}
     with open(filename, 'rb') as handle:
         dct = pickle.load(handle)
     cweights=dct['val']
-    HE2 = dct['key']
-    for key in cweights:
-        arr = cweights[key]
-        shape = arr.shape
-        weight = arr.flatten()
-        for l in np.arange(len(weight)):
-            weight[l]._pyfhel = HE2
-        enc_array = weight.reshape(shape)
-        enc_weights[key] = enc_array
+    enc_weights = cweights
     for key in enc_weights:
         arr = enc_weights[key]
         shape = arr.shape
@@ -257,20 +247,19 @@ def decrypt_gradients(filename):
         dec_weights[key] = dec_array    
     model = torch.load(os.path.join(args.client_model_path, 'global_model.pt'))
     layers_list = [module for module in model.modules() if not isinstance(module, nn.Sequential)]
+    weight=[]
     for i in range(len(layers_list)):
         if hasattr(layers_list[i], 'weight') and type(layers_list[i]) != torch.nn.modules.batchnorm.BatchNorm2d:
-            weights = layers_list[i].weight
-            weight=[]
-            for j in range(len(weights)):
-                weight.append(dec_weights['c_'+str(i)+'_'+str(j)])
-            print('weight:', torch.Tensor(weight).shape)
-            a = model[i].weight.flatten().detach().cpu()
-            print('a.shape: ', a.shape)
-            # model.layers[i].set_weights(weight)
-            # print('appended list: ', torch.FloatTensor(weight).shape)  # torch.Size([4, 1, 5, 5, 4096])
+            global_weights = model[i].weight
+            global_shape = model[i].weight.shape
+            new_weights = dec_weights['c_'+str(i)]
+            global_weights_flat = global_weights.flatten().detach().cpu()
+            new_weights_flat = new_weights.flatten()
+            for j in range(len(global_weights_flat)):
+                model[i].weight.flatten().detach().cpu()[j] = new_weights_flat[j][0]
+                model[i].weight.reshape(global_shape)            
     torch.save(model, os.path.join(args.client_model_path, 'global_model.pt'))
-    return model        
-    
+    return model            
 
 if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -283,23 +272,19 @@ if __name__ == '__main__':
     train_loader, test_loader = load_data()
     optimizer = optim.Adam(model.parameters())
     loss_fn = torch.nn.CrossEntropyLoss()
-        
 
+    os.makedirs(args.client_model_path, exist_ok = True)  
     torch.save(model, os.path.join(args.client_model_path, 'global_model.pt'))                      
     num_of_clients = 3
-    # for num_client in range(num_of_clients):        
-    #     train_clients(num_client)
-    
+    for num_client in range(num_of_clients):        
+        train_clients(num_client)
     HE=gen_keys()
-        
-# =============================================================================
-#     for num_client in range(num_of_clients):
-#         print('Encryption of client: ', num_client+1)
-#         client_model_path = os.path.join(args.client_model_path, str(num_client+1)+'.pt')
-#         client_model = torch.load(client_model_path)
-#         client_model.eval() 
-#         encrypt_gradients(client_model, num_client)
-# =============================================================================
+    for num_client in range(num_of_clients):
+        print('Encryption of client: ', num_client+1)
+        client_model_path = os.path.join(args.client_model_path, str(num_client+1)+'.pt')
+        client_model = torch.load(client_model_path)
+        client_model.eval() 
+        encrypt_gradients(client_model, num_client)
     print('<===================Model Aggregation==================>')
     global_model_dict, saved_path = aggregate_encrypted_gradients(num_of_clients)
     print('<===================Decryption==================>')
