@@ -24,6 +24,7 @@ parser.add_argument('--data_file_name', type = str, default = 'cifar10_data.pkl'
 parser.add_argument('--model_name', type = str, default = 'cnn2', help = 'cnn2, resnet18')
 parser.add_argument('--epochs', type = int, default = 5, help = 'Number of epochs for each local model training')
 parser.add_argument('--batch_size', type = int, default = 128, help = 'Batch size for each local data and model')
+parser.add_argument('--number_of_clients', type = int, default = 3, help = 'Number of clients or particpants in the training process.')
 parser.add_argument('--client_model_path', type = str, default = 'client_models', help = 'Folder to save client individual models by their number/index')
 args = parser.parse_args() 
 
@@ -189,7 +190,7 @@ def encrypt_gradients(client_model, num_client):
         
 def aggregate_encrypted_gradients(num_of_clients):
     dct_weights ={}
-    # denom = float(1/num_of_clients)
+    # denom = float(1/args.number_of_clients)
     denom = 1
     filename =  "public_key.pickle"
     with open(filename, 'rb') as handle:
@@ -274,19 +275,18 @@ if __name__ == '__main__':
     loss_fn = torch.nn.CrossEntropyLoss()
 
     os.makedirs(args.client_model_path, exist_ok = True)  
-    torch.save(model, os.path.join(args.client_model_path, 'global_model.pt'))                      
-    num_of_clients = 3
-    for num_client in range(num_of_clients):        
+    torch.save(model, os.path.join(args.client_model_path, 'global_model.pt'))  
+    for num_client in range(args.number_of_clients):        
         train_clients(num_client)
     HE=gen_keys()
-    for num_client in range(num_of_clients):
+    for num_client in range(args.number_of_clients):
         print('Encryption of client: ', num_client+1)
         client_model_path = os.path.join(args.client_model_path, str(num_client+1)+'.pt')
         client_model = torch.load(client_model_path)
         client_model.eval() 
         encrypt_gradients(client_model, num_client)
     print('<===================Model Aggregation==================>')
-    global_model_dict, saved_path = aggregate_encrypted_gradients(num_of_clients)
+    global_model_dict, saved_path = aggregate_encrypted_gradients(args.number_of_clients)
     print('<===================Decryption==================>')
     decrypt_gradients(saved_path)
     print('Decryption successfule!')
