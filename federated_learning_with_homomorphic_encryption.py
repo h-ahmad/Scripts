@@ -109,7 +109,7 @@ def train(train_loader, optimizer, model, loss_fn):
     return model
 
 def test(test_loader, loss_fn):
-    correct = 0
+    correct = 0.00
     total = 0
     model.eval()
     with torch.no_grad():
@@ -124,6 +124,7 @@ def test(test_loader, loss_fn):
 def train_clients(num_client):
     train_loader, test_loader = load_data()
     for epoch in range(1, args.epochs + 1):
+        print('Client:', str(num_client+1), ' Epcoh:', epoch)
         client_model = train(train_loader, optimizer, model, loss_fn)
     os.makedirs(args.client_model_path, exist_ok=True)
     saved_model_path = os.path.join(args.client_model_path, str(num_client+1)+'.pt')
@@ -190,15 +191,21 @@ def encrypt_gradients(client_model, num_client):
         
 def aggregate_encrypted_gradients(num_of_clients):
     dct_weights ={}
-    # denom = float(1/args.number_of_clients)
-    denom = 1
+    denom = float(1/args.number_of_clients)
+    # denom = 1
     filename =  "public_key.pickle"
     with open(filename, 'rb') as handle:
         key = pickle.load(handle)
     HE = key['HE']
     HE.from_bytes_context(key['con'])
     HE.from_bytes_public_key(key['pk'])
-    # c_denom = HE.encryptFrac(denom)
+    c_denom = HE.encrypt(denom)
+    filename =  "public_key.pickle"
+    with open(filename, 'rb') as handle:
+        key = pickle.load(handle)
+    HE = key['HE']
+    HE.from_bytes_context(key['con'])
+    HE.from_bytes_public_key(key['pk'])
     for i in range(num_of_clients):
         print('Aggregating client: ', (i+1))
         filename =  os.path.join(args.client_model_path, "client_" + str(i+1)+ ".pickle")
@@ -221,7 +228,8 @@ def aggregate_encrypted_gradients(num_of_clients):
                 dct_weights[key] = np.zeros_like(arr,dtype=PyCtxt) # array/matrix of zeros            
             dct_weights[key] = enc_weights[key] + dct_weights[key]
     for key in dct_weights:
-        dct_weights[key]= dct_weights[key]*denom #c_denom
+        # dct_weights[key]= dct_weights[key]*denom #c_denom
+        dct_weights[key]= dct_weights[key]*c_denom
     dic = {}
     dic['key']=HE
     dic['val']=dct_weights
@@ -279,6 +287,7 @@ if __name__ == '__main__':
     for num_client in range(args.number_of_clients):        
         train_clients(num_client)
     HE=gen_keys()
+    print('<=================== Encryption Started! ==================>')
     for num_client in range(args.number_of_clients):
         print('Encryption of client: ', num_client+1)
         client_model_path = os.path.join(args.client_model_path, str(num_client+1)+'.pt')
