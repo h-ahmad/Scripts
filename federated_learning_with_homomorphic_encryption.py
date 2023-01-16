@@ -290,4 +290,7 @@ if __name__ == '__main__':
     print('<===================Decryption==================>')
     decrypt_gradients(saved_path)
     print('Decryption successfule!')
+    print('<=================== Testing... ==================>')
+    accuracy = test(test_loader, loss_fn)
+    print('Accuracy of global model: ', accuracy)
     print('Global model is saved at: ', args.client_model_path)
