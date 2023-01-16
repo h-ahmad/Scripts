@@ -94,7 +94,7 @@ def load_data():
         test_set = torchvision.datasets.MNIST(root = args.data_path,train=False,download=True,transform=transform)
     if args.dataset_name == 'cifar10':
         train_set = torchvision.datasets.CIFAR10(root = args.data_path,train=True,download=True,transform=transform)
-        test_set = torchvision.datasets.MNIST(root = args.data_path,train=False,download=True,transform=transform)
+        test_set = torchvision.datasets.CIFAR10(root = args.data_path,train=False,download=True,transform=transform)
     trainLoader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=True)
     testLoader = torch.utils.data.DataLoader(test_set,batch_size=args.batch_size,shuffle=True)
     return trainLoader, testLoader 
@@ -117,9 +117,10 @@ def train(train_loader, optimizer, model, loss_fn):
         #     training_loss = 0.0
     return model
 
-def test(test_loader, loss_fn):
+def test(test_loader, loss_fn, model_path):
     correct = 0.00
     total = 0.00
+    model = torch.load(model_path)
     model.eval()
     with torch.no_grad():
         for data, target in test_loader:
@@ -309,6 +310,6 @@ if __name__ == '__main__':
     decrypt_gradients(saved_path)
     print('Decryption successfule!')
     print('<=================== Testing... ==================>')
-    accuracy = test(test_loader, loss_fn)
+    accuracy = test(test_loader, loss_fn, os.path.join(args.client_model_path, 'global_model.pt'))
     print('Accuracy of global model: ', accuracy)
     print('Global model is saved at: ', args.client_model_path)
