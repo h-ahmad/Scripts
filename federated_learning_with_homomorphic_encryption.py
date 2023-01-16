@@ -20,52 +20,57 @@ import torchvision.transforms as transforms
 
 parser = argparse.ArgumentParser(description = 'Main Script')
 parser.add_argument('--data_path', type = str, default = './data', help = 'Main path to the dataset')
-parser.add_argument('--data_file_name', type = str, default = 'cifar10_data.pkl', help = 'Dataset file')
-parser.add_argument('--model_name', type = str, default = 'cnn2', help = 'cnn2, resnet18')
+parser.add_argument('--data_file_name', type = str, default = 'cifar10_data.pkl', help = 'Dataset file if not online')
+parser.add_argument('--dataset_name', type = str, default = 'mnist', help = 'mnist, cifar10')
+parser.add_argument('--data_channels', type=int, default = 1, help = 'Number of channels as 1 or 3.')
+parser.add_argument('--model_name', type = str, default = 'lenet', help = 'lenet, cnn2, resnet18')
 parser.add_argument('--epochs', type = int, default = 5, help = 'Number of epochs for each local model training')
 parser.add_argument('--batch_size', type = int, default = 128, help = 'Batch size for each local data and model')
 parser.add_argument('--number_of_clients', type = int, default = 3, help = 'Number of clients or particpants in the training process.')
 parser.add_argument('--client_model_path', type = str, default = 'client_models', help = 'Folder to save client individual models by their number/index')
 args = parser.parse_args() 
 
-# =============================================================================
-# class Net(nn.Module): # CNN2
-#     def __init__(self):
-#         super(Net, self).__init__()
-#         self.activation = nn.ReLU(True)
-#         self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=(5, 5), padding=1, stride=1, bias=False)
-#         self.conv2 = nn.Conv2d(in_channels=32, out_channels=32 * 2, kernel_size=(5, 5), padding=1, stride=1, bias=False)
-#         self.maxpool1 = nn.MaxPool2d(kernel_size=(2, 2), padding=1)
-#         self.maxpool2 = nn.MaxPool2d(kernel_size=(2, 2), padding=1)
-#         self.flatten = nn.Flatten()
-#         self.fc1 = nn.Linear(in_features=(32 * 2) * (8 * 8), out_features=512, bias=False)
-#         self.fc2 = nn.Linear(in_features=512, out_features=10, bias=False)
-# 
-#     def forward(self, x):
-#         x = self.activation(self.conv1(x))
-#         x = self.maxpool1(x)
-#         x = self.activation(self.conv2(x))
-#         x = self.maxpool2(x)
-#         x = self.flatten(x)
-#         x = self.activation(self.fc1(x))
-#         x = self.fc2(x)
-#         return x
-# =============================================================================
-    
-class ModelCreation(nn.Module):
+class CNN2Model(nn.Module):
     def __init__(self):
         super().__init__()
     
-    def normal_model(self):
+    def cnn2_model(self):
+        if args.dataset_name == 'cifar10':
+            lin_dim = 8
+        if args.dataset_name == 'mnist':
+            lin_dim = 7
+        cnn2 = nn.Sequential(
+            nn.Conv2d(in_channels=args.data_channels, out_channels=4, kernel_size=(5, 5), padding=1, stride=1, bias=False),
+            nn.ReLU(True),
+            nn.MaxPool2d(kernel_size=(2, 2), padding=1),
+            nn.Conv2d(in_channels=4, out_channels=12, kernel_size=(5, 5), padding=1, stride=1, bias=False),
+            nn.ReLU(True),
+            nn.MaxPool2d(kernel_size=(2, 2), padding=1),
+            nn.Flatten(),
+            nn.Linear(in_features=(12) * (lin_dim * lin_dim), out_features=10, bias=False),
+            # nn.ReLU(True),
+            # nn.Linear(in_features=512, out_features=10, bias=False),
+        )
+        return cnn2
+    
+class LeNetModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    def lenet_model(self):
+        if args.dataset_name == 'cifar10': 
+            lin_dim = 5
+        if args.dataset_name == 'mnist':
+            lin_dim = 4
         LeNet1 = nn.Sequential(
-            nn.Conv2d(1, 4, kernel_size=5),
+            nn.Conv2d(args.data_channels, 4, kernel_size=5),
             nn.Tanh(),
             nn.AvgPool2d(kernel_size=2),
             nn.Conv2d(4, 12, kernel_size=5),
             nn.Tanh(),
             nn.AvgPool2d(kernel_size=2),
             nn.Flatten(),
-            nn.Linear(192, 10),
+            nn.Linear( (12) * (lin_dim * lin_dim), 10),    # 192
         )
         return LeNet1
 
@@ -84,8 +89,12 @@ def load_data():
 #     testLoader = torch.utils.data.DataLoader(testDs,batch_size=args.batch_size)
 # =============================================================================
     transform = transforms.ToTensor()
-    train_set = torchvision.datasets.MNIST(root = args.data_path,train=True,download=True,transform=transform)
-    test_set = torchvision.datasets.MNIST(root = args.data_path,train=False,download=True,transform=transform)
+    if args.dataset_name == 'mnist':
+        train_set = torchvision.datasets.MNIST(root = args.data_path,train=True,download=True,transform=transform)
+        test_set = torchvision.datasets.MNIST(root = args.data_path,train=False,download=True,transform=transform)
+    if args.dataset_name == 'cifar10':
+        train_set = torchvision.datasets.CIFAR10(root = args.data_path,train=True,download=True,transform=transform)
+        test_set = torchvision.datasets.MNIST(root = args.data_path,train=False,download=True,transform=transform)
     trainLoader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=True)
     testLoader = torch.utils.data.DataLoader(test_set,batch_size=args.batch_size,shuffle=True)
     return trainLoader, testLoader 
@@ -99,6 +108,7 @@ def train(train_loader, optimizer, model, loss_fn):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
+        # print('shape: ', output.shape)
         loss = loss_fn(output, target)
         loss.backward()
         optimizer.step()
@@ -110,7 +120,7 @@ def train(train_loader, optimizer, model, loss_fn):
 
 def test(test_loader, loss_fn):
     correct = 0.00
-    total = 0
+    total = 0.00
     model.eval()
     with torch.no_grad():
         for data, target in test_loader:
@@ -192,7 +202,6 @@ def encrypt_gradients(client_model, num_client):
 def aggregate_encrypted_gradients(num_of_clients):
     dct_weights ={}
     denom = float(1/args.number_of_clients)
-    # denom = 1
     filename =  "public_key.pickle"
     with open(filename, 'rb') as handle:
         key = pickle.load(handle)
@@ -212,7 +221,6 @@ def aggregate_encrypted_gradients(num_of_clients):
         with open(filename, 'rb') as handle:
             dct = pickle.load(handle)
         cweights=dct['val']
-        # HE2 = dct['key']
         enc_weights={}
         for key in cweights:
             arr = cweights[key]
@@ -228,7 +236,6 @@ def aggregate_encrypted_gradients(num_of_clients):
                 dct_weights[key] = np.zeros_like(arr,dtype=PyCtxt) # array/matrix of zeros            
             dct_weights[key] = enc_weights[key] + dct_weights[key]
     for key in dct_weights:
-        # dct_weights[key]= dct_weights[key]*denom #c_denom
         dct_weights[key]= dct_weights[key]*c_denom
     dic = {}
     dic['key']=HE
@@ -273,9 +280,11 @@ def decrypt_gradients(filename):
 if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if args.model_name == 'cnn2':
-        # model = Net().to(device)
-        model_creation = ModelCreation()
-        model = model_creation.normal_model().to(device)
+        model_creation = CNN2Model()
+        model = model_creation.cnn2_model().to(device)
+    if args.model_name == 'lenet':
+        model_creation = LeNetModel()
+        model = model_creation.lenet_model().to(device)
     if args.model_name == 'resnet18':
         model = resnet18(pretrained = True).to(device)    
     train_loader, test_loader = load_data()
@@ -284,6 +293,7 @@ if __name__ == '__main__':
 
     os.makedirs(args.client_model_path, exist_ok = True)  
     torch.save(model, os.path.join(args.client_model_path, 'global_model.pt'))  
+    print('<=================== Training Started! ==================>')
     for num_client in range(args.number_of_clients):        
         train_clients(num_client)
     HE=gen_keys()
