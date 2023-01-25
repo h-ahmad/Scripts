@@ -17,16 +17,18 @@ import pickle
 import argparse
 import torchvision
 import torchvision.transforms as transforms
+import time
+import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser(description = 'Main Script')
 parser.add_argument('--data_path', type = str, default = './data', help = 'Main path to the dataset')
 parser.add_argument('--data_file_name', type = str, default = 'cifar10_data.pkl', help = 'Dataset file if not online')
-parser.add_argument('--dataset_name', type = str, default = 'cifar10', help = 'mnist, cifar10')
-parser.add_argument('--data_channels', type=int, default = 3, help = 'Number of channels as 1 or 3.')
-parser.add_argument('--model_name', type = str, default = 'lenet', help = 'lenet, cnn2, resnet18')
-parser.add_argument('--epochs', type = int, default = 5, help = 'Number of epochs for each local model training')
+parser.add_argument('--dataset_name', type = str, default = 'mnist', help = 'mnist, cifar10')
+parser.add_argument('--data_channels', type=int, default = 1, help = 'Number of channels as 1 or 3.')
+parser.add_argument('--model_name', type = str, default = 'cnn2', help = 'lenet, cnn2, resnet18')
+parser.add_argument('--epochs', type = int, default = 50, help = 'Number of epochs for each local model training')
 parser.add_argument('--batch_size', type = int, default = 128, help = 'Batch size for each local data and model')
-parser.add_argument('--number_of_clients', type = int, default = 3, help = 'Number of clients or particpants in the training process.')
+parser.add_argument('--number_of_clients', type = int, default = 16, help = 'Number of clients or particpants in the training process.')
 parser.add_argument('--client_model_path', type = str, default = 'client_models', help = 'Folder to save client individual models by their number/index')
 args = parser.parse_args() 
 
@@ -111,16 +113,15 @@ def train(train_loader, optimizer, model, loss_fn):
         loss = loss_fn(output, target)
         loss.backward()
         optimizer.step()
-        training_loss += loss.item()
+        training_loss += loss.item()        
         # if index % 100 == 99:    # print every 100 mini-batches
         #     print(f'batch loss: {training_loss / 100:.3f}')
         #     training_loss = 0.0
     return model
 
-def test(test_loader, loss_fn, model_path):
+def test(test_loader, loss_fn, model):
     correct = 0.00
-    total = 0.00
-    model = torch.load(model_path)
+    total = 0.00    
     model.eval()
     with torch.no_grad():
         for data, target in test_loader:
@@ -132,10 +133,10 @@ def test(test_loader, loss_fn, model_path):
     return (100 * correct // total)
 
 def train_clients(num_client):
-    train_loader, test_loader = load_data()
+    train_loader, test_loader = load_data()    
     for epoch in range(1, args.epochs + 1):
         print('Client:', str(num_client+1), ' Epcoh:', epoch)
-        client_model = train(train_loader, optimizer, model, loss_fn)
+        client_model = train(train_loader, optimizer, model, loss_fn)    
     os.makedirs(args.client_model_path, exist_ok=True)
     saved_model_path = os.path.join(args.client_model_path, str(num_client+1)+'.pt')
     torch.save(client_model, saved_model_path) 
@@ -201,7 +202,7 @@ def encrypt_gradients(client_model, num_client):
         
 def aggregate_encrypted_gradients(num_of_clients):
     dct_weights ={}
-    denom = float(1/args.number_of_clients)
+    denom = float(1/num_of_clients)
     filename =  "public_key.pickle"
     with open(filename, 'rb') as handle:
         key = pickle.load(handle)
@@ -275,7 +276,7 @@ def decrypt_gradients(filename):
                 model[i].weight.flatten().detach().cpu()[j] = new_weights_flat[j][0]
                 model[i].weight.reshape(global_shape)            
     torch.save(model, os.path.join(args.client_model_path, 'global_model.pt'))
-    return model            
+    return model        
 
 if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -294,8 +295,16 @@ if __name__ == '__main__':
     os.makedirs(args.client_model_path, exist_ok = True)  
     torch.save(model, os.path.join(args.client_model_path, 'global_model.pt'))  
     print('<=================== Training Started! ==================>')
-    for num_client in range(args.number_of_clients):        
+    
+    # time calculation variables
+    start_time = time.time()
+    client_axis = []
+    time_axis = []
+    end_time = 0.0
+    
+    for num_client in range(args.number_of_clients):
         train_clients(num_client)
+    
     HE=gen_keys()
     print('<=================== Encryption Started! ==================>')
     for num_client in range(args.number_of_clients):
@@ -303,13 +312,27 @@ if __name__ == '__main__':
         client_model_path = os.path.join(args.client_model_path, str(num_client+1)+'.pt')
         client_model = torch.load(client_model_path)
         client_model.eval() 
-        encrypt_gradients(client_model, num_client)
+        encrypt_gradients(client_model, num_client)   
+        
+        end_time += time.time() - start_time
+        client_axis.append(num_client+1)
+        time_axis.append(end_time)
+        
     print('<===================Model Aggregation==================>')
     global_model_dict, saved_path = aggregate_encrypted_gradients(args.number_of_clients)
     print('<===================Decryption==================>')
     decrypt_gradients(saved_path)
     print('Decryption successfule!')
     print('<=================== Testing... ==================>')
-    accuracy = test(test_loader, loss_fn, os.path.join(args.client_model_path, 'global_model.pt'))
+    global_model = torch.load(os.path.join(args.client_model_path, 'global_model.pt'))
+    accuracy = test(test_loader, loss_fn, global_model)
     print('Accuracy of global model: ', accuracy)
     print('Global model is saved at: ', args.client_model_path)
+    
+    
+    plt.plot(client_axis, time_axis)
+    plt.xlabel('Number of clients (N)')
+    plt.ylabel('Time (s)')
+    plt.title('CNN-2 complet training using FHE.')
+    plt.savefig(args.model_name+'_training_encryption.png')
+    plt.show()    
