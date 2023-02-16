@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sat Oct 29 13:07:50 2022
-
 @author: hussain
 """
 
@@ -13,11 +12,11 @@ import matplotlib.pyplot as plt
 import argparse
 
 parser = argparse.ArgumentParser(description = 'Main Script')
-parser.add_argument('--data_path', type = str, default = 'data/cifar10_4clients_non_iid_alpha0.5/', help = 'Path to the main directory')
-parser.add_argument('--dataset_name', type = str, default = 'cifar10', help = 'cifar10, mnist')
-parser.add_argument('--file_name', type = str, default = 'mnist_client3.pkl', help = 'File name with extension')
-parser.add_argument('--file_format', type = str, default = 'numpy', help = 'pickle, numpy')
-parser.add_argument('--graph_type', type = str, default = 'distribution', help = 'scatter, distribution')
+parser.add_argument('--data_path', type = str, default = './BodaFL/data/mnist_1clients_non_iid_alpha0.5/', help = 'Path to the main directory')
+parser.add_argument('--dataset_name', type = str, default = 'mnist', help = 'cifar10, mnist')
+parser.add_argument('--file_name', type = str, default = 'mnist_train_test.pkl', help = 'File name with extension')
+parser.add_argument('--file_format', type = str, default = 'pickle', help = 'pickle, numpy')
+parser.add_argument('--graph_type', type = str, default = 'scatter', help = 'scatter, distribution')
 args = parser.parse_args() 
 
 
@@ -59,17 +58,16 @@ def scatter_plot(classes_name):
         y_train = y_train[2] # change index for each client
     
     classes, counts = np.unique(y_train, return_counts=True) 
-    area = (30 * np.random.rand(len(classes)))**2  # 0 to 15 point radii
     colors = np.random.rand(len(classes)) 
     fig, ax = plt.subplots()
-    ax.scatter(classes, counts, s=area, c=colors, alpha=0.5)
+    sizes = np.array(counts/10)
+    ax.scatter(classes, counts, s = sizes,  c=colors, alpha=0.5)
     # annotate labels
     for i, txt in enumerate(classes):
-        ax.annotate(classes[i], (classes[i], counts[i]))        
-    
+        ax.annotate(classes[i], (classes[i], counts[i]))           
     plt.title('Class distribution in training set')
-    plt.show()
     plt.savefig(os.path.join(args.data_path, "chart.pdf"), format="pdf", bbox_inches="tight")
+    plt.show()
     
     
 if __name__ == '__main__':
