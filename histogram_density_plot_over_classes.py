@@ -16,7 +16,7 @@ parser.add_argument('--data_path', type = str, default = './BodaFL/data/mnist_1c
 parser.add_argument('--dataset_name', type = str, default = 'mnist', help = 'cifar10, mnist')
 parser.add_argument('--file_name', type = str, default = 'mnist_train_test.pkl', help = 'File name with extension')
 parser.add_argument('--file_format', type = str, default = 'pickle', help = 'pickle, numpy')
-parser.add_argument('--graph_type', type = str, default = 'scatter', help = 'scatter, distribution')
+parser.add_argument('--graph_type', type = str, default = 'distribution', help = 'scatter, distribution')
 args = parser.parse_args() 
 
 
@@ -41,7 +41,7 @@ def class_distribution(classes_name):
     bars = plt.barh(classes_name, counts)
     plt.bar_label(bars, label_type='center', color='white', labels=[f'{x:,}' for x in bars.datavalues])
     plt.title('Class distribution in training set')
-    plt.savefig(os.path.join(args.data_path, "chart.pdf"), format="pdf", bbox_inches="tight")
+    plt.savefig(os.path.join(args.data_path, "distribution.pdf"), format="pdf", bbox_inches="tight")
 
 def scatter_plot(classes_name):
     if args.file_format == 'pickle':
@@ -66,7 +66,7 @@ def scatter_plot(classes_name):
     for i, txt in enumerate(classes):
         ax.annotate(classes[i], (classes[i], counts[i]))           
     plt.title('Class distribution in training set')
-    plt.savefig(os.path.join(args.data_path, "chart.pdf"), format="pdf", bbox_inches="tight")
+    plt.savefig(os.path.join(args.data_path, "scatter.pdf"), format="pdf", bbox_inches="tight")
     plt.show()
     
     
