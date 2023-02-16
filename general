@@ -1,3 +1,4 @@
+# Compare model prediction with ground truth label.
 x, y = batch
 prediction = model(x)
 _, predicted = torch.max(prediction.data, 1)
