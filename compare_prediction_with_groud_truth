@@ -1,0 +1,5 @@
+x, y = batch
+prediction = model(x)
+_, predicted = torch.max(prediction.data, 1)
+if prediction == y:
+  print('Matched with label: ', y)
