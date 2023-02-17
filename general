@@ -25,3 +25,17 @@ with torch.no_grad():
     features = resnet18(input_batch)
 print(features.shape)
 ==========================================================
+# Multidimensional scaling (MDS)
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.manifold import MDS
+dissimilarity_matrix = np.array([
+    [0, 1, 2],
+    [1, 0, 3],
+    [2, 3, 0]
+])
+# Compute the MDS embedding
+mds = MDS(n_components=2, dissimilarity='precomputed', random_state=42)
+X_mds = mds.fit_transform(dissimilarity_matrix)
+plt.scatter(X_mds[:, 0], X_mds[:, 1], c=[2,3,4], cmap='viridis')
+plt.show()
