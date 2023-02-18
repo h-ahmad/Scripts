@@ -13,48 +13,55 @@ import numpy as np
 import os
 from skimage import io
 import pickle
+import csv
+from torchvision.utils import save_image
 
 parser = argparse.ArgumentParser(description = 'Main Script')
 parser.add_argument('--data_path', type = str, default = './data', help = 'Path to the main directory')
-parser.add_argument('--dataset_name', type = str, default = 'imagenet', choices = ['cifar10', 'cifar100', 'mnist', 'svhn', 'mnist_m', 'usps', 'imagenet'], help = 'Name of dataset')
-parser.add_argument('--number_of_classes', type = int, default = 1000, choices = ['2', '10', '100', '1000'], help = 'Number of classes in dataset')
-parser.add_argument('--image_height', type = int, default = 224, choices = ['28', '32', '16', '224'], help = 'Height of each image in dataset')
-parser.add_argument('--image_width', type = int, default = 224, choices = ['28', '32', '16', '224'], help = 'Width of each image in dataset')
-parser.add_argument('--image_channel', type = int, default = 3, help = 'Channel of a single image in dataset, i.e., 1, 3')
-parser.add_argument('--number_of_clients', type = int, default = 4, help = 'Total nodes to which dataset is divided')
+parser.add_argument('--dataset_name', type = str, default = 'mnist', choices = ['cifar10', 'cifar100', 'mnist', 'svhn', 'mnist_m', 'usps', 'imagenet'], help = 'Name of dataset')
+parser.add_argument('--number_of_classes', type = int, default = 10, choices = ['2', '10', '100', '1000'], help = 'Number of classes in dataset')
+parser.add_argument('--image_height', type = int, default = 28, choices = ['28', '32', '16', '224'], help = 'Height of each image in dataset')
+parser.add_argument('--image_width', type = int, default = 28, choices = ['28', '32', '16', '224'], help = 'Width of each image in dataset')
+parser.add_argument('--image_channel', type = int, default = 1, help = 'Channel of a single image in dataset, i.e., 1, 3')
+parser.add_argument('--transform', type=bool, default = True, help = 'True, False')
+parser.add_argument('--number_of_clients', type = int, default = 1, help = 'Total nodes to which dataset is divided')
 parser.add_argument('--distribution_method', type = str, default = 'non_iid', choices = ['iid, non_iid'], help = 'Type of data distribution')
 parser.add_argument('--dirichlet_alpha', type = float, default = 0.5, help = 'Value of alpha for dirichlet distribution')
 parser.add_argument('--imbalance_sigma', type = int, default = 0, help = '0 or otherwise')
 parser.add_argument('--num_workers', type=int, default = 1, help='1, 4, 8, ...')
+parser.add_argument('--download_type', type=str, default='pickle', choices=['images', 'pickle'])
 args = parser.parse_args() 
 
-def cifar10():
-    transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+def cifar10(transform):
+    if transform is not None:
+        transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])    
     trainset = torchvision.datasets.CIFAR10(root=args.data_path,train=True , download=True, transform=transform)
     testset = torchvision.datasets.CIFAR10(root=args.data_path,train=False, download=True, transform=transform)    
-    trainload = torch.utils.data.DataLoader(trainset, batch_size=50000, shuffle=False, num_workers=args.num_workers)
-    testload = torch.utils.data.DataLoader(testset, batch_size=10000, shuffle=False, num_workers=args.num_workers)
-    return trainload, testload
+    train_batch = 50000
+    test_batch = 10000
+    return trainset, testset, train_batch, test_batch
 
-def cifar100():
-    transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+def cifar100(transform):
+    if transform is not None:
+        transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean=[0.5071, 0.4865, 0.4409], std=[0.2673, 0.2564, 0.2762])])
     trainset = torchvision.datasets.CIFAR100(root=args.data_path,train=True , download=True, transform=transform)
     testset = torchvision.datasets.CIFAR100(root=args.data_path,train=False, download=True, transform=transform)    
-    trainload = torch.utils.data.DataLoader(trainset, batch_size=50000, shuffle=False, num_workers=args.num_workers)
-    testload = torch.utils.data.DataLoader(testset, batch_size=10000, shuffle=False, num_workers=args.num_workers)
-    return trainload, testload
+    train_batch = 50000
+    test_batch = 10000
+    return trainset, testset, train_batch, test_batch
 
-def mnist():
-    transform = transforms.Compose([transforms.ToTensor(), 
-                                    # transforms.Normalize((0.1307,), (0.3081,))
-                                    ])
+def mnist(transform):
+    if transform is not None:
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
     trainset = torchvision.datasets.MNIST(root=args.data_path, train=True , download=True, transform=transform)
     testset = torchvision.datasets.MNIST(root=args.data_path, train=False, download=True, transform=transform)    
-    trainload = torch.utils.data.DataLoader(trainset, batch_size=60000, shuffle=False, num_workers=args.num_workers)
-    testload = torch.utils.data.DataLoader(testset, batch_size=10000, shuffle=False, num_workers=args.num_workers)
-    return trainload, testload
+    train_batch = 60000
+    test_batch = 10000
+    return trainset, testset, train_batch, test_batch
 
-def mnist_m():
+def mnist_m(transform):
+    # if transform is not None:
+        # transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
     data_path = os.path.join(args.data_path, 'mnist_m')
     train_data = os.path.join(data_path, 'mnist_m_train')
     test_data = os.path.join(data_path, 'mnist_m_test')
@@ -95,35 +102,36 @@ def mnist_m():
     test_x = test_x.permute(0, 3, 1, 2)
     trainset = torch.utils.data.TensorDataset(train_x,train_y)
     testset = torch.utils.data.TensorDataset(test_x,test_y)
-    train_loader = torch.utils.data.DataLoader(trainset, batch_size=59001, shuffle=True, num_workers=args.num_workers, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(testset, batch_size=9001, shuffle=True, num_workers=args.num_workers, pin_memory=True)
-    return train_loader, test_loader
+    train_batch = 59001
+    test_batch = 9001
+    return trainset, testset, train_batch, test_batch
 
-def usps():
-    transform = transforms.Compose([transforms.ToTensor()])
+def usps(transform):
+    if transform is not None:
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1564,), (0.2566,))])
     trainset = torchvision.datasets.USPS(root=args.data_path, train=True , download=True, transform=transform)
     testset = torchvision.datasets.USPS(root=args.data_path, train=False, download=True, transform=transform)
-    trainload = torch.utils.data.DataLoader(trainset, batch_size=7291, shuffle=False, num_workers=args.num_workers)
-    testload = torch.utils.data.DataLoader(testset, batch_size=2007, shuffle=False, num_workers=args.num_workers)
-    return trainload, testload
+    train_batch = 7291
+    test_batch = 2007
+    return trainset, testset, train_batch, test_batch
 
-def svhn():
-    transform = transforms.Compose([transforms.ToTensor()])
+def svhn(transform):
+    if transform is not None:
+        transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean=[0.4377, 0.4438, 0.4728], std=[0.198 , 0.201 , 0.197])])
     trainset = torchvision.datasets.SVHN(root=args.data_path, split='train', download=True, transform=transform) # split = train, test, extra
     testset = torchvision.datasets.SVHN(root=args.data_path, split='test', download=True, transform=transform) # split = train, test, extra
-    train_loader = torch.utils.data.DataLoader(trainset, batch_size=73257, shuffle=True, num_workers=args.num_workers, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(testset, batch_size=26032, shuffle=True, num_workers=args.num_workers, pin_memory=True)
-    return train_loader, test_loader
+    train_batch = 73257
+    test_batch = 26032
+    return trainset, testset, train_batch, test_batch
 
-def imagenet():
-    transform = transforms.Compose([transforms.ToTensor()])
+def imagenet(transform):
+    if transform is not None:
+        transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
     trainset = torchvision.datasets.ImageNet(root=args.data_path, split='train', download=True, transform=transform) # split = train, test, extra
     testset = torchvision.datasets.SVHN(root=args.data_path, split='val', download=True, transform=transform) # split = train, test, extra
-    print('len of imagenet train: ', len(trainset))
-    print('len of imagenet val: ', len(testset))
-    train_loader = torch.utils.data.DataLoader(trainset, batch_size=73257, shuffle=True, num_workers=args.num_workers, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(testset, batch_size=26032, shuffle=True, num_workers=args.num_workers, pin_memory=True)
-    return train_loader, test_loader
+    train_batch = 73257
+    test_batch = 26032
+    return trainset, testset, train_batch, test_batch
 
 def imbalance(samples_per_client, y_train):
     if args.imbalance_sigma != 0:
@@ -186,22 +194,27 @@ def independent_identical_data(client_data_list, X_train, y_train):
     client_y = np.asarray(client_y)
     return (client_x, client_y)
 
-def data_distribution():
+def data_download():
+    transform = None
+    if args.transform == True:
+        transform = True
     if args.dataset_name == 'cifar10':
-        trainload, testload = cifar10()
+        trainset, testset, train_batch, test_batch = cifar10(transform)
     if args.dataset_name == 'cifar100':
-        trainload, testload = cifar100()        
+        trainset, testset, train_batch, test_batch = cifar100(transform)        
     if args.dataset_name == 'mnist':
-        trainload, testload = mnist()
+        trainset, testset, train_batch, test_batch = mnist(transform)
     if args.dataset_name == 'mnist_m':
-        trainload, testload = mnist_m()
+        trainset, testset, train_batch, test_batch = mnist_m(transform)
     if args.dataset_name == 'usps':
-        trainload, testload = usps()
+        trainset, testset, train_batch, test_batch = usps(transform)
     if args.dataset_name == 'svhn':
-        trainload, testload = svhn()
+        trainset, testset, train_batch, test_batch = svhn(transform)
     if args.dataset_name == 'imagenet':
-        trainload, testload = imagenet()
-        
+        trainset, testset, train_batch, test_batch = imagenet(transform)
+    
+    trainload = torch.utils.data.DataLoader(trainset, batch_size=train_batch, shuffle=False, num_workers=args.num_workers)
+    testload = torch.utils.data.DataLoader(testset, batch_size=test_batch, shuffle=False, num_workers=args.num_workers)       
     print('<============= Data loaded, and distribution process started! ================>')
     # iterate over whole data
     train_iteration = trainload.__iter__(); 
@@ -209,6 +222,33 @@ def data_distribution():
     X_train, y_train = train_iteration.__next__()  # <class 'torch.Tensor'>
     X_test, y_test = test_iteration.__next__()
     
+    if args.download_type in 'pickle':
+        data_to_clients_pickle(X_train, y_train, X_test, y_test)
+    else:
+        folder_images_csv_labels(X_train, y_train, X_test, y_test)
+
+def folder_images_csv_labels(X_train, y_train, X_test, y_test):
+    # training data 
+    os.makedirs(os.path.join(args.data_path, args.dataset_name+'_train'), exist_ok = True)
+    data_store_path = os.path.join(args.data_path, args.dataset_name+'_train')  
+    csv_file = open(os.path.join(args.data_path, args.dataset_name+'_train.csv'), 'w', newline='')  
+    writer = csv.writer(csv_file)
+    for i in range(y_train.shape[0]):        
+        save_image(X_train[i], os.path.join(data_store_path, str(i)+'.png'))
+        writer.writerow([str(i)+'.png', y_train[i].item()])
+    csv_file.close()
+    # test data
+    os.makedirs(os.path.join(args.data_path, args.dataset_name+'_test'), exist_ok = True)
+    data_store_path = os.path.join(args.data_path, args.dataset_name+'_test')  
+    csv_file = open(os.path.join(args.data_path, args.dataset_name+'_test.csv'), 'w', newline='')  
+    writer = csv.writer(csv_file)
+    for i in range(y_test.shape[0]):        
+        save_image(X_test[i], os.path.join(data_store_path, str(i)+'.png'))
+        writer.writerow([str(i)+'.png', y_test[i].item()])
+    csv_file.close()
+    print('Data download at: ', data_store_path)
+
+def data_to_clients_pickle(X_train, y_train, X_test, y_test):
     # convert tensor to numpy array and reshape
     X_train = X_train.numpy();   # <class 'numpy.ndarray'>
     y_train = y_train.numpy().reshape(-1,1)
@@ -243,8 +283,8 @@ def data_distribution():
     with open(os.path.join(args.data_path, os.path.join(file_path, args.dataset_name+'_train_test.pkl')), 'wb') as file:  
             data_store = {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test}
             pickle.dump(data_store, file)
-    print('Data saved on the location: ', os.path.join(args.data_path, file_path))
+    print('Data saved on the location: ', os.path.join(args.data_path, file_path))    
             
         
 if __name__ == '__main__':    
-    data_distribution()    
+    data_download()  
