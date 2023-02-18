@@ -23,18 +23,20 @@ parser.add_argument('--number_of_classes', type = int, default = 10, choices = [
 parser.add_argument('--image_height', type = int, default = 28, choices = ['28', '32', '16', '224'], help = 'Height of each image in dataset')
 parser.add_argument('--image_width', type = int, default = 28, choices = ['28', '32', '16', '224'], help = 'Width of each image in dataset')
 parser.add_argument('--image_channel', type = int, default = 1, help = 'Channel of a single image in dataset, i.e., 1, 3')
-parser.add_argument('--transform', type=bool, default = True, help = 'True, False')
+parser.add_argument('--transform', type=bool, default = False, help = 'True, False')
 parser.add_argument('--number_of_clients', type = int, default = 1, help = 'Total nodes to which dataset is divided')
 parser.add_argument('--distribution_method', type = str, default = 'non_iid', choices = ['iid, non_iid'], help = 'Type of data distribution')
 parser.add_argument('--dirichlet_alpha', type = float, default = 0.5, help = 'Value of alpha for dirichlet distribution')
 parser.add_argument('--imbalance_sigma', type = int, default = 0, help = '0 or otherwise')
 parser.add_argument('--num_workers', type=int, default = 1, help='1, 4, 8, ...')
-parser.add_argument('--download_type', type=str, default='pickle', choices=['images', 'pickle'])
+parser.add_argument('--download_type', type=str, default='images', choices=['images', 'pickle'])
 args = parser.parse_args() 
 
 def cifar10(transform):
     if transform is not None:
-        transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])    
+        transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+    else:
+        transform = transforms.Compose([transforms.ToTensor()])
     trainset = torchvision.datasets.CIFAR10(root=args.data_path,train=True , download=True, transform=transform)
     testset = torchvision.datasets.CIFAR10(root=args.data_path,train=False, download=True, transform=transform)    
     train_batch = 50000
@@ -44,6 +46,8 @@ def cifar10(transform):
 def cifar100(transform):
     if transform is not None:
         transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean=[0.5071, 0.4865, 0.4409], std=[0.2673, 0.2564, 0.2762])])
+    else:
+        transform = transforms.Compose([transforms.ToTensor()])
     trainset = torchvision.datasets.CIFAR100(root=args.data_path,train=True , download=True, transform=transform)
     testset = torchvision.datasets.CIFAR100(root=args.data_path,train=False, download=True, transform=transform)    
     train_batch = 50000
@@ -53,6 +57,8 @@ def cifar100(transform):
 def mnist(transform):
     if transform is not None:
         transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+    else:
+        transform = transforms.Compose([transforms.ToTensor()])
     trainset = torchvision.datasets.MNIST(root=args.data_path, train=True , download=True, transform=transform)
     testset = torchvision.datasets.MNIST(root=args.data_path, train=False, download=True, transform=transform)    
     train_batch = 60000
@@ -118,6 +124,8 @@ def usps(transform):
 def svhn(transform):
     if transform is not None:
         transform = transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean=[0.4377, 0.4438, 0.4728], std=[0.198 , 0.201 , 0.197])])
+    else:
+        transform = transforms.Compose([transforms.ToTensor()])
     trainset = torchvision.datasets.SVHN(root=args.data_path, split='train', download=True, transform=transform) # split = train, test, extra
     testset = torchvision.datasets.SVHN(root=args.data_path, split='test', download=True, transform=transform) # split = train, test, extra
     train_batch = 73257
@@ -246,7 +254,7 @@ def folder_images_csv_labels(X_train, y_train, X_test, y_test):
         save_image(X_test[i], os.path.join(data_store_path, str(i)+'.png'))
         writer.writerow([str(i)+'.png', y_test[i].item()])
     csv_file.close()
-    print('Data download at: ', data_store_path)
+    print('Data download at: ', args.data_path)
 
 def data_to_clients_pickle(X_train, y_train, X_test, y_test):
     # convert tensor to numpy array and reshape
