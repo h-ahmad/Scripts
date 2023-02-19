@@ -12,17 +12,15 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from copy import deepcopy
 import torch
-import torch.nn.functional as F
 import torchvision.models as torch_models
 import torchvision.transforms as transforms
 import pandas as pd
 from skimage import io
-import numpy as np
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_path", type=str, default='./data/', help="Location of dataset")
-    parser.add_argument("--datasets", type=list, default = ['mnist', 'usps'], choices=['mnist', 'mnist_m', 'svhn', 'usps'], help="List of datasets")
+    parser.add_argument("--datasets", type=list, default = ['mnist', 'mnist_m', 'svhn', 'usps'], choices=['mnist', 'mnist_m', 'svhn', 'usps'], help="List of datasets")
     parser.add_argument('--num_classes', type = int, default = 10, choices = [2, 10], help = 'Number of classes in dataset')
     parser.add_argument('--model', type=str, default = 'simple', choices=['cnn2', 'lenet1', 'resnet18', 'simple'], help='Choose model')
     parser.add_argument('--Pretrained', action='store_true', default=True, help="Whether use pretrained or not")
@@ -31,9 +29,10 @@ def main():
     parser.add_argument("--learning_rate", default=0.01, type=float,  help="The initial learning rate for SGD. Set to [3e-3] for ViT-CWT")
     parser.add_argument("--weight_decay", default=0, choices=[0.05, 0], type=float, help="Weight deay if we apply. E.g., 0 for SGD and 0.05 for AdamW")
     parser.add_argument("--batch_size", default=128, type=int,  help="Local batch size for training")
-    parser.add_argument("--epoch", default=2, type=int, help="Local training epochs in FL")
-    parser.add_argument("--communication_rounds", default=2, type=int,  help="Total communication rounds")
+    parser.add_argument("--epoch", default=50, type=int, help="Local training epochs in FL")
+    parser.add_argument("--communication_rounds", default=100, type=int,  help="Total communication rounds")
     parser.add_argument("--gpu_ids", type=str, default='0', help="gpu ids: e.g. 0,1,2")
+    parser.add_argument('--output_path', type=str, default='', help='path to store evaluation metrics')
     args = parser.parse_args()
     
     args.device = torch.device("cuda:{gpu_id}".format(gpu_id = args.gpu_ids) if torch.cuda.is_available() else "cpu")
@@ -53,57 +52,79 @@ def main():
     
     model_all = {}
     # optimizer_all = {}
+    best_global_accuracy = {}
+    best_local_accuracy = {}
+    best_global_loss = {}
+    best_local_loss = {}
     for index, client in enumerate(args.datasets):
         model_all[index] = deepcopy(model).cpu()
         # optimizer_all[index] = optimizer
-    
-    for comm_round in range(args.communication_rounds):
-        for index, client in enumerate(args.datasets):
-            print('Training client ', (index+1), ' having data ', client,' for communication round ', (comm_round+1))            
-            train_loader = load_data(args, client, phase = 'train')
-            model = model_all[index].to(args.device)
-            if args.model in 'resnet':
-                model.eval()
-            else:
-                model.train()
-            
-            if args.optimizer_type == 'sgd':
-                optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.5, weight_decay=args.weight_decay)
-            elif args.optimizer_type == 'adamw':
-                optimizer = torch.optim.AdamW(model.parameters(), eps=1e-8, betas=(0.9, 0.999), lr=args.learning_rate, weight_decay=0.05)
-            else:
-                optimizer = torch.optim.AdamW(model.parameters(), eps=1e-8, betas=(0.9, 0.999), lr=args.learning_rate, weight_decay=0.05)
-            
-            for epoch in range(args.epoch):
-                correct = 0
-                avg_loss = 0
-                for step, batch in enumerate(train_loader):
-                    batch = tuple(t.to(args.device) for t in batch)
-                    x, y = batch  
-                    optimizer.zero_grad()
-                    prediction = model(x)
+        best_global_accuracy[client] = 0
+        best_local_accuracy[client] = 0
+        best_global_loss[client] = 99
+        best_local_loss[client] = 99
+    with open("training.log", "w") as logger:
+        for comm_round in range(args.communication_rounds):
+            for index, client in enumerate(args.datasets):
+                print('Training client ', (index+1), ' having data ', client,' for communication round ', (comm_round+1))    
+                logger.write(f"Communication round: {comm_round}            Client: {index}: {client}"+"\n \n")
+                train_loader = load_data(args, client, phase = 'train')
+                model = model_all[index].to(args.device)
+                if args.model in 'resnet':
+                    model.eval()
+                else:
+                    model.train()
+                
+                if args.optimizer_type == 'sgd':
+                    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.5, weight_decay=args.weight_decay)
+                elif args.optimizer_type == 'adamw':
+                    optimizer = torch.optim.AdamW(model.parameters(), eps=1e-8, betas=(0.9, 0.999), lr=args.learning_rate, weight_decay=0.05)
+                else:
+                    optimizer = torch.optim.AdamW(model.parameters(), eps=1e-8, betas=(0.9, 0.999), lr=args.learning_rate, weight_decay=0.05)
+                
+                for epoch in range(args.epoch):
+                    correct = 0
+                    avg_loss = 0
+                    for step, batch in enumerate(train_loader):
+                        batch = tuple(t.to(args.device) for t in batch)
+                        x, y = batch
+                        optimizer.zero_grad()
+                        prediction = model(x)
+                        pred = prediction.argmax(dim=1, keepdim=True)
+                        correct += pred.eq(y.view_as(pred)).sum().item()
+                        loss = loss_fn(prediction.view(-1, args.num_classes), y.view(-1))
+                        loss.backward()
+                        optimizer.step()
+                        avg_loss += loss.item()                
+                    avg_loss = avg_loss/len(train_loader.dataset)
+                    accuracy = 100*(correct/len(train_loader.dataset))
+                    # print('Training epoch: ', epoch+1, '   Accuracy: {:.2f}'.format(accuracy), '    Loss: {:.4f}'.format(avg_loss))
+                    # log_string = f"Client: {client},     Epoch: {epoch},        loss: {avg_loss:.4f},    accuracy: {accuracy:.4f}"
+                    # logger.write(log_string+ "\n")
+                # evaluate local model
+                val_loss, val_accuracy = test(args, model_all, loss_fn, local_model = model)
+                for idx, dataset in enumerate(args.datasets):
+                    if best_local_accuracy[dataset] < val_accuracy[dataset]:
+                        best_local_accuracy[dataset] = val_accuracy[dataset]
+                        best_local_loss[dataset] = val_loss[dataset]
+                        log_string = f"{client} model for {dataset}:  Best loss: {best_local_loss[dataset]:.4f},  Best accuracy: {best_local_accuracy[dataset]:.4f}"
+                        logger.write(log_string+ "\n")
                     
-                    pred = prediction.argmax(dim=1, keepdim=True)
-                    correct += pred.eq(y.view_as(pred)).sum().item()
-                    
-                    loss = loss_fn(prediction.view(-1, args.num_classes), y.view(-1))
-                    loss.backward()
-                    optimizer.step()
-                    avg_loss += loss.item()                
-                avg_loss = avg_loss/len(train_loader.dataset)
-                accuracy = 100*(correct/len(train_loader.dataset))
-                print('Training epoch: ', epoch+1, '   Accuracy: {:.2f}'.format(accuracy), '    Loss: {:.4f}'.format(avg_loss))
-            model.to('cpu')
+                model.to('cpu')
+                
+            # average model
+            averaging(args, model_avg, model_all) 
             
-        # average model
-        averaging(args, model_avg, model_all) 
-        
-        print('----------- Validation of communication round ', comm_round, '--------------')
-        
-        test_loader = load_data(args, client, phase = 'test')
-        test_accuracy = test(args, model_all, test_loader, loss_fn)    
-        print('Test accuracy for client ', client, 'is: {:.3f}'.format(test_accuracy))
-    print('<===== End Training/Testing!======')
+            print('----------- Validation of communication round ', comm_round, '--------------')
+            
+            test_loss, test_accuracy = test(args, model_all, loss_fn)  
+            for idx, client in enumerate(args.datasets):
+                if best_global_accuracy[client] < test_accuracy[client]:
+                    best_global_accuracy[client] = test_accuracy[client]
+                    best_global_loss[client] = test_loss[client]
+                    log_string = f"\n \n Global model for {client}:  Best loss: {best_global_loss[client]:.4f},  Best accuracy: {best_global_accuracy[client]:.4f}"
+                    logger.write(log_string+ "\n")
+        print('<===== End Training/Testing!======>')
         
                     
 
@@ -221,22 +242,34 @@ def averaging(args, model_avg, model_all):
         for name, param in params.items():
             tmp_params[name].data.copy_(param.data)
 
-def test(args, model_all, data_loader, loss_fn):
+def test(args, model_all, loss_fn, local_model = None):
+    client_accuracy = {}
+    client_loss = {}
     for index, client in enumerate(args.datasets):
-        model = model_all[index]
+        data_loader = load_data(args, client, phase = 'test')
+        if local_model is not None:
+            model = local_model
+        else:
+            model = model_all[index]
         model.to(args.device)
         model.eval()
         correct = 0
+        loss = 0
         with torch.no_grad():
             for step, batch in enumerate(data_loader):
                 batch = tuple(t.to(args.device) for t in batch)
                 x, y = batch                    
                 logits = model(x)
+                loss += loss_fn(logits.view(-1, args.num_classes), y.view(-1))
                 pred = logits.argmax(dim=1, keepdim=True)
                 correct += pred.eq(y.view_as(pred)).sum().item()               
+        avg_loss = loss/len(data_loader.dataset)
         accuracy = 100*(correct / len(data_loader.dataset))
         model.train()
-        return accuracy
+        model.cpu()
+        client_accuracy[client] = accuracy
+        client_loss[client] = avg_loss.item()
+    return client_loss, client_accuracy
         
 def load_data(args, client, phase):
     if phase in 'train':
@@ -251,7 +284,8 @@ def load_data(args, client, phase):
         transform = transforms.Compose([transforms.ToTensor()])
         dataset = CustomLoader(csv_path, dataset_path, transform)
         data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-    return data_loader      
+    return data_loader
+        
 
 if __name__ == "__main__":
     main()
