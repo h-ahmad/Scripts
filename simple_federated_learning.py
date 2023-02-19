@@ -63,7 +63,7 @@ def main():
         best_local_accuracy[client] = 0
         best_global_loss[client] = 99
         best_local_loss[client] = 99
-    with open("training.log", "w") as logger:
+    with open(os.path.join(args.output_path, "training.log"), "w") as logger:
         for comm_round in range(args.communication_rounds):
             for index, client in enumerate(args.datasets):
                 print('Training client ', (index+1), ' having data ', client,' for communication round ', (comm_round+1))    
@@ -98,9 +98,6 @@ def main():
                         avg_loss += loss.item()                
                     avg_loss = avg_loss/len(train_loader.dataset)
                     accuracy = 100*(correct/len(train_loader.dataset))
-                    # print('Training epoch: ', epoch+1, '   Accuracy: {:.2f}'.format(accuracy), '    Loss: {:.4f}'.format(avg_loss))
-                    # log_string = f"Client: {client},     Epoch: {epoch},        loss: {avg_loss:.4f},    accuracy: {accuracy:.4f}"
-                    # logger.write(log_string+ "\n")
                 # evaluate local model
                 val_loss, val_accuracy = test(args, model_all, loss_fn, local_model = model)
                 for idx, dataset in enumerate(args.datasets):
@@ -284,8 +281,7 @@ def load_data(args, client, phase):
         transform = transforms.Compose([transforms.ToTensor()])
         dataset = CustomLoader(csv_path, dataset_path, transform)
         data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-    return data_loader
-        
+    return data_loader     
 
 if __name__ == "__main__":
     main()
