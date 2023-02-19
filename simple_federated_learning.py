@@ -1,136 +1,257 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Dec  1 16:26:40 2022
+Created on Thu Jan 26 16:41:25 2023
 
 @author: hussain
 """
 
-from Pyfhel import Pyfhel, PyCtxt
-import numpy as np
-import os
-import torch 
-import torch.nn as nn
-import torch.optim as optim
-from torchvision.models.resnet import resnet18
-import pickle
 import argparse
-import sys
+import os
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+from copy import deepcopy
+import torch
+import torch.nn.functional as F
+import torchvision.models as torch_models
+import torchvision.transforms as transforms
+import pandas as pd
+from skimage import io
+import numpy as np
 
-parser = argparse.ArgumentParser(description = 'Main Script')
-parser.add_argument('--data_path', type = str, default = './data', help = 'Main path to the dataset')
-parser.add_argument('--data_file_name', type = str, default = 'cifar10_data.pkl', help = 'Dataset file')
-parser.add_argument('--model_name', type = str, default = 'cnn2', help = 'cnn2, resnet18')
-parser.add_argument('--epochs', type = int, default = 5, help = 'Number of epochs for each local model training')
-parser.add_argument('--batch_size', type = int, default = 128, help = 'Batch size for each local data and model')
-parser.add_argument('--client_model_path', type = str, default = 'client_models', help = 'Folder to save client individual models by their number/index')
-args = parser.parse_args() 
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data_path", type=str, default='./data/', help="Location of dataset")
+    parser.add_argument("--datasets", type=list, default = ['mnist', 'usps'], choices=['mnist', 'mnist_m', 'svhn', 'usps'], help="List of datasets")
+    parser.add_argument('--num_classes', type = int, default = 10, choices = [2, 10], help = 'Number of classes in dataset')
+    parser.add_argument('--model', type=str, default = 'simple', choices=['cnn2', 'lenet1', 'resnet18', 'simple'], help='Choose model')
+    parser.add_argument('--Pretrained', action='store_true', default=True, help="Whether use pretrained or not")
+    parser.add_argument("--optimizer_type", default="sgd",choices=["sgd", "adamw"], type=str, help="Type of optimizer")
+    parser.add_argument("--num_workers", default=4, type=int, help="num_workers")
+    parser.add_argument("--learning_rate", default=0.01, type=float,  help="The initial learning rate for SGD. Set to [3e-3] for ViT-CWT")
+    parser.add_argument("--weight_decay", default=0, choices=[0.05, 0], type=float, help="Weight deay if we apply. E.g., 0 for SGD and 0.05 for AdamW")
+    parser.add_argument("--batch_size", default=128, type=int,  help="Local batch size for training")
+    parser.add_argument("--epoch", default=2, type=int, help="Local training epochs in FL")
+    parser.add_argument("--communication_rounds", default=2, type=int,  help="Total communication rounds")
+    parser.add_argument("--gpu_ids", type=str, default='0', help="gpu ids: e.g. 0,1,2")
+    args = parser.parse_args()
+    
+    args.device = torch.device("cuda:{gpu_id}".format(gpu_id = args.gpu_ids) if torch.cuda.is_available() else "cpu")
+    if args.model in 'cnn2':
+        model = CNN2Model()
+    if args.model in 'lenet1':
+        model = LeNetModel()
+    if args.model == 'simple':
+        model = Net()
+    if args.model == 'resnet18':
+        model = torch_models.resnet18(pretrained=True)
+        model.fc = nn.Linear(model.fc.weight.shape[1], args.num_classes)
+    model.to(args.device)
+    
+    model_avg = deepcopy(model).cpu()
+    loss_fn = torch.nn.CrossEntropyLoss()
+    
+    model_all = {}
+    # optimizer_all = {}
+    for index, client in enumerate(args.datasets):
+        model_all[index] = deepcopy(model).cpu()
+        # optimizer_all[index] = optimizer
+    
+    for comm_round in range(args.communication_rounds):
+        for index, client in enumerate(args.datasets):
+            print('Training client ', (index+1), ' having data ', client,' for communication round ', (comm_round+1))            
+            train_loader = load_data(args, client, phase = 'train')
+            model = model_all[index].to(args.device)
+            if args.model in 'resnet':
+                model.eval()
+            else:
+                model.train()
+            
+            if args.optimizer_type == 'sgd':
+                optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.5, weight_decay=args.weight_decay)
+            elif args.optimizer_type == 'adamw':
+                optimizer = torch.optim.AdamW(model.parameters(), eps=1e-8, betas=(0.9, 0.999), lr=args.learning_rate, weight_decay=0.05)
+            else:
+                optimizer = torch.optim.AdamW(model.parameters(), eps=1e-8, betas=(0.9, 0.999), lr=args.learning_rate, weight_decay=0.05)
+            
+            for epoch in range(args.epoch):
+                correct = 0
+                avg_loss = 0
+                for step, batch in enumerate(train_loader):
+                    batch = tuple(t.to(args.device) for t in batch)
+                    x, y = batch  
+                    optimizer.zero_grad()
+                    prediction = model(x)
+                    
+                    pred = prediction.argmax(dim=1, keepdim=True)
+                    correct += pred.eq(y.view_as(pred)).sum().item()
+                    
+                    loss = loss_fn(prediction.view(-1, args.num_classes), y.view(-1))
+                    loss.backward()
+                    optimizer.step()
+                    avg_loss += loss.item()                
+                avg_loss = avg_loss/len(train_loader.dataset)
+                accuracy = 100*(correct/len(train_loader.dataset))
+                print('Training epoch: ', epoch+1, '   Accuracy: {:.2f}'.format(accuracy), '    Loss: {:.4f}'.format(avg_loss))
+            model.to('cpu')
+            
+        # average model
+        averaging(args, model_avg, model_all) 
+        
+        print('----------- Validation of communication round ', comm_round, '--------------')
+        
+        test_loader = load_data(args, client, phase = 'test')
+        test_accuracy = test(args, model_all, test_loader, loss_fn)    
+        print('Test accuracy for client ', client, 'is: {:.3f}'.format(test_accuracy))
+    print('<===== End Training/Testing!======')
+        
+                    
 
-class Net(nn.Module): # CNN2
+class CNN2Model(nn.Module):
     def __init__(self):
-        super(Net, self).__init__()
+        super(CNN2Model, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=4, kernel_size=(5, 5), padding=1, stride=1, bias=False)
         self.activation = nn.ReLU(True)
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=(5, 5), padding=1, stride=1, bias=False)
-        self.conv2 = nn.Conv2d(in_channels=32, out_channels=32 * 2, kernel_size=(5, 5), padding=1, stride=1, bias=False)
-        self.maxpool1 = nn.MaxPool2d(kernel_size=(2, 2), padding=1)
-        self.maxpool2 = nn.MaxPool2d(kernel_size=(2, 2), padding=1)
+        # self.pool = nn.MaxPool2d(kernel_size=(2, 2), padding=1)
+        self.pool = nn.AdaptiveAvgPool2d((7,7))   # adaptive pool
+        self.conv2 = nn.Conv2d(in_channels=4, out_channels=12, kernel_size=(5, 5), padding=1, stride=1, bias=False)
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(in_features=(32 * 2) * (8 * 8), out_features=512, bias=False)
-        self.fc2 = nn.Linear(in_features=512, out_features=10, bias=False)
-
+        self.dense1 = nn.Linear(in_features=(12) * (7 * 7), out_features=10, bias=False)
+        
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.activation(x)
+        x = self.pool(x)
+        x = self.conv2(x)
+        x = self.activation(x)
+        x = self.pool(x)
+        x = self.flatten(x)
+        # print(x.view(-1, self.num_flat_features(x)).shape[1])
+        x = self.dense1(x)
+        return x
+    
+class LeNetModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 4, kernel_size=5)
+        self.activation = nn.Tanh()
+        # self.pool = nn.AvgPool2d(kernel_size=2)
+        self.pool = nn.AdaptiveAvgPool2d((7,7))
+        self.conv2 = nn.Conv2d(4, 12, kernel_size=5)
+        self.flatten = nn.Flatten()
+        self.dense1 = nn.Linear( (12) * (7 * 7), 10)
+    
     def forward(self, x):
         x = self.activation(self.conv1(x))
-        x = self.maxpool1(x)
+        x = self.pool(x)
         x = self.activation(self.conv2(x))
-        x = self.maxpool2(x)
+        x = self.pool(x)
         x = self.flatten(x)
-        x = self.activation(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-def load_data():
-    with open(os.path.join(args.data_path, args.data_file_name), 'rb') as file:
-            data_store = pickle.load(file)
-    xTrain, yTrain, xTest, yTest = data_store['X_train'], data_store['y_train'], data_store['X_test'], data_store['y_test']    
-    xTrain, yTrain, xTest, yTest = map(torch.tensor, (xTrain.astype(np.float32), yTrain.astype(np.int_), 
-                                                      xTest.astype(np.float32), yTest.astype(np.int_))) 
-    # print('xTrain: ', xTrain.shape)
-    # print('yTrain: ', yTrain.shape)
-    # print('xTest: ', xTest.shape)
-    # print('yTest: ', yTest.shape)
-    yTrain = yTrain.type(torch.LongTensor)
-    yTest = yTest.type(torch.LongTensor)
-    trainDs = torch.utils.data.TensorDataset(xTrain,yTrain)
-    testDs = torch.utils.data.TensorDataset(xTest,yTest)
-    trainLoader = torch.utils.data.DataLoader(trainDs,batch_size=args.batch_size)
-    testLoader = torch.utils.data.DataLoader(testDs,batch_size=args.batch_size)
-    return trainLoader, testLoader 
-
-def train(train_loader, optimizer, model, loss_fn):
-    training_loss = 0.0
-    model.train()
-    test = []
-    for index, (data, target) in enumerate(train_loader):
-        test.append(index)
-        data, target = data.to(device), target.to(device)
-        optimizer.zero_grad()
-        output = model(data)
-        loss = loss_fn(output, target)
-        loss.backward()
-        optimizer.step()
-        training_loss += loss.item()
-        # if index % 100 == 99:    # print every 100 mini-batches
-        #     print(f'batch loss: {training_loss / 100:.3f}')
-        #     training_loss = 0.0
-    return model
-
-def test(test_loader, loss_fn):
-    correct = 0
-    total = 0
-    model.eval()
-    with torch.no_grad():
-        for data, target in test_loader:
-            data, target = data.to(device), target.to(device)
-            output = model(data)
-            _, predicted = torch.max(output.data, 1)
-            total += target.size(0) # add batches count
-            correct += (predicted == target).sum().item() # integer value of correct count            
-    return (100 * correct // total)
-
-def train_clients(num_client):
-    train_loader, test_loader = load_data()
-    for epoch in range(1, args.epochs + 1):
-        client_model = train(train_loader, optimizer, model, loss_fn)
-    os.makedirs(args.client_model_path, exist_ok=True)
-    saved_model_path = os.path.join(args.client_model_path, str(num_client+1)+'.pt')
-    torch.save(client_model, saved_model_path)        
-        
-def aggregate_models(num_of_clients):
-    model_list = []    
-    main_model_state = {}
-    for num_client in range(num_of_clients):
-        client_model_path = os.path.join(args.client_model_path, str(num_client+1)+'.pt')
-        client_model_state = torch.load(client_model_path).state_dict()
-        model_list.append(client_model_state)
+        x = self.dense1(x)
+        return x        
     
-    for layer in model_list[0]: # Get layers of any model
-        weight_avg = 0
-        for model_state in model_list:
-            weight_avg += model_state[layer]            
-        main_model_state[layer] = weight_avg/num_of_clients
-    return main_model_state
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(3, 10, kernel_size=5)
+        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
+        self.fc1 = nn.Linear(320, 50)
+        self.fc2 = nn.Linear(50, 10)
 
-if __name__ == '__main__':
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if args.model_name == 'cnn2':
-        model = Net().to(device)
-    if args.model_name == 'resnet18':
-        model = resnet18(pretrained = True).to(device)    
-    train_loader, test_loader = load_data()
-    optimizer = optim.Adam(model.parameters())
-    loss_fn = torch.nn.CrossEntropyLoss()  
-    # Federated learning...........
-    num_of_clients = 3
-    for num_client in range(num_of_clients):        
-        train_clients(num_client)
-    main_model_dict = aggregate_models(num_of_clients)
+    def forward(self, x):
+        # x = nn.functional.relu(nn.functional.max_pool2d(self.conv1(x), 2))
+        x = nn.functional.relu(nn.functional.adaptive_max_pool2d(self.conv1(x), 12))
+        x = nn.functional.relu(nn.functional.max_pool2d(self.conv2(x), 2))
+        x = x.view(-1, 320)
+        x = nn.functional.relu(self.fc1(x))
+        x = self.fc2(x)
+        return nn.functional.log_softmax(x, dim=1)     
+    
+# ============================Perfect for MNIST=================================================
+# class Net(nn.Module):
+#     def __init__(self):
+#         super(Net, self).__init__()
+#         self.conv1 = nn.Conv2d(3, 10, kernel_size=5)
+#         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
+#         self.fc1 = nn.Linear(320, 50)
+#         self.fc2 = nn.Linear(50, 10)
+# 
+#     def forward(self, x):
+#         x = nn.functional.relu(nn.functional.max_pool2d(self.conv1(x), 2))
+#         x = nn.functional.relu(nn.functional.max_pool2d(self.conv2(x), 2))
+#         x = x.view(-1, 320)
+#         x = nn.functional.relu(self.fc1(x))
+#         x = self.fc2(x)
+#         return nn.functional.log_softmax(x, dim=1)  
+# =============================================================================
+
+class CustomLoader(Dataset):
+    def __init__(self, csv_path, dataset_path, transform=None):
+        self.image_names = pd.read_csv(csv_path)
+        self.data_path = dataset_path
+        self.transform = transform
+    def __len__(self):
+        return len(self.image_names)
+    def __getitem__(self, index):
+        if torch.is_tensor(index):
+            index = index.tolist()
+        img_name = os.path.join(self.data_path, self.image_names.iloc[index, 0])
+        img = io.imread(img_name) 
+        label = self.image_names.iloc[index, 1]
+        label = torch.tensor(label)
+        if self.transform:
+            img = self.transform(img)
+        #sample = {'img':img, 'label':label}
+        return img, label 
+
+def averaging(args, model_avg, model_all):
+    print('Model averaging...')
+    model_avg.cpu()
+    params = dict(model_avg.named_parameters())
+    for name, param in params.items():
+        for index, client in enumerate(args.datasets):
+            if index == 0:
+                tmp_param_data = dict(model_all[index].named_parameters())[name].data * (1/len(args.datasets))
+            else:
+                tmp_param_data = tmp_param_data + dict(model_all[index].named_parameters())[name].data * (1/len(args.datasets))
+        params[name].data.copy_(tmp_param_data)
+    print('Updating clients...')
+    for index, client in enumerate(args.datasets):
+        tmp_params = dict(model_all[index].named_parameters())
+        for name, param in params.items():
+            tmp_params[name].data.copy_(param.data)
+
+def test(args, model_all, data_loader, loss_fn):
+    for index, client in enumerate(args.datasets):
+        model = model_all[index]
+        model.to(args.device)
+        model.eval()
+        correct = 0
+        with torch.no_grad():
+            for step, batch in enumerate(data_loader):
+                batch = tuple(t.to(args.device) for t in batch)
+                x, y = batch                    
+                logits = model(x)
+                pred = logits.argmax(dim=1, keepdim=True)
+                correct += pred.eq(y.view_as(pred)).sum().item()               
+        accuracy = 100*(correct / len(data_loader.dataset))
+        model.train()
+        return accuracy
+        
+def load_data(args, client, phase):
+    if phase in 'train':
+        csv_path = os.path.join(os.path.join(args.data_path, client), client+'_train.csv')
+        dataset_path = os.path.join(os.path.join(args.data_path, client), client+'_train')
+        transform = transforms.Compose([transforms.ToTensor()])
+        dataset = CustomLoader(csv_path, dataset_path, transform)
+        data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    if phase in 'test':
+        csv_path = os.path.join(os.path.join(args.data_path, client), client+'_test.csv')
+        dataset_path = os.path.join(os.path.join(args.data_path, client), client+'_test')
+        transform = transforms.Compose([transforms.ToTensor()])
+        dataset = CustomLoader(csv_path, dataset_path, transform)
+        data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    return data_loader      
+
+if __name__ == "__main__":
+    main()
