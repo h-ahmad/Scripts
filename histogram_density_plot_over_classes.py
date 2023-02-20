@@ -12,11 +12,12 @@ import matplotlib.pyplot as plt
 import argparse
 
 parser = argparse.ArgumentParser(description = 'Main Script')
-parser.add_argument('--data_path', type = str, default = './BodaFL/data/mnist_1clients_non_iid_alpha0.5/', help = 'Path to the main directory')
-parser.add_argument('--dataset_name', type = str, default = 'mnist', help = 'cifar10, mnist')
-parser.add_argument('--file_name', type = str, default = 'mnist_train_test.pkl', help = 'File name with extension')
+parser.add_argument('--data_path', type = str, default = './data/usps/', help = 'Path to the main directory')
+parser.add_argument('--dataset_name', type = str, default = 'usps', help = 'cifar10, mnist, mnist-m, svhn, usps')
+parser.add_argument('--set_type', type=str, default='test', choices=['train', 'test'])
+parser.add_argument('--file_name', type = str, default = 'usps_train_test.pkl', help = 'File name with extension')
 parser.add_argument('--file_format', type = str, default = 'pickle', help = 'pickle, numpy')
-parser.add_argument('--graph_type', type = str, default = 'distribution', help = 'scatter, distribution')
+parser.add_argument('--graph_type', type = str, default = 'scatter', help = 'scatter, distribution')
 args = parser.parse_args() 
 
 
@@ -26,38 +27,50 @@ def class_distribution(classes_name):
         with open(os.path.join(args.data_path, args.file_name), 'rb') as file:
             data_store = pickle.load(file)
             print('keys: ', data_store.keys())
-            X_train, y_train, xTest, yTest = data_store['X_train'], data_store['y_train'], data_store['X_test'], data_store['y_test']
+            X_train, y_train, X_test, y_test = data_store['X_train'], data_store['y_train'], data_store['X_test'], data_store['y_test']
             print('X_train.shape', X_train.shape)
             print('y_train.shape', y_train.shape)
     
     if args.file_format == 'numpy':
         X_train = np.load(os.path.join(args.data_path, 'X_train.npy'), allow_pickle=True)
         y_train = np.load(os.path.join(args.data_path, 'y_train.npy'), allow_pickle=True)
+        X_test = np.load(os.path.join(args.data_path, 'X_test.npy'), allow_pickle=True)
+        y_test = np.load(os.path.join(args.data_path, 'y_test.npy'), allow_pickle=True)
         print('X_train.shape', X_train.shape) # (4, 12500, 3, 32, 32) => 4 clients each having 12500 samples
         print('y_train.shape', y_train.shape) # (4, 12500, 1)
         y_train = y_train[0] # change index for each client
+        y_test = y_test[0]
     
-    classes, counts = np.unique(y_train, return_counts=True)
+    if args.set_type in 'train':
+        classes, counts = np.unique(y_train, return_counts=True)
+    else:
+        classes, counts = np.unique(y_test, return_counts=True)
     bars = plt.barh(classes_name, counts)
     plt.bar_label(bars, label_type='center', color='white', labels=[f'{x:,}' for x in bars.datavalues])
-    plt.title('Class distribution in training set')
-    plt.savefig(os.path.join(args.data_path, "distribution.pdf"), format="pdf", bbox_inches="tight")
+    plt.title('Class distribution in '+ args.dataset_name+' test set.')
+    plt.savefig(os.path.join(args.data_path, args.dataset_name+"_"+args.set_type+"_distribution.pdf"), format="pdf", bbox_inches="tight")
 
 def scatter_plot(classes_name):
     if args.file_format == 'pickle':
         with open(os.path.join(args.data_path, args.file_name), 'rb') as file:
             data_store = pickle.load(file)
-            X_train, y_train, xTest, yTest = data_store['X_train'], data_store['y_train'], data_store['X_test'], data_store['y_test']
+            X_train, y_train, X_test, y_test = data_store['X_train'], data_store['y_train'], data_store['X_test'], data_store['y_test']
             print('X_train: ', X_train.shape)
             print('y_train: ', y_train.shape)
     if args.file_format == 'numpy':
         X_train = np.load(os.path.join(args.data_path, 'X_train.npy'), allow_pickle=True)
         y_train = np.load(os.path.join(args.data_path, 'y_train.npy'), allow_pickle=True)
+        X_test = np.load(os.path.join(args.data_path, 'X_test.npy'), allow_pickle=True)
+        y_test = np.load(os.path.join(args.data_path, 'y_test.npy'), allow_pickle=True)
         print('X_train.shape', X_train.shape) # (4, 12500, 3, 32, 32) => 4 clients each having 12500 samples
         print('y_train.shape', y_train.shape) # (4, 12500, 1)
-        y_train = y_train[2] # change index for each client
+        y_train = y_train[0] # change index for each client
+        y_test = y_test[0]
     
-    classes, counts = np.unique(y_train, return_counts=True) 
+    if args.set_type in 'train':
+        classes, counts = np.unique(y_train, return_counts=True)
+    else:
+        classes, counts = np.unique(y_test, return_counts=True)
     colors = np.random.rand(len(classes)) 
     fig, ax = plt.subplots()
     sizes = np.array(counts/10)
@@ -65,8 +78,8 @@ def scatter_plot(classes_name):
     # annotate labels
     for i, txt in enumerate(classes):
         ax.annotate(classes[i], (classes[i], counts[i]))           
-    plt.title('Class distribution in training set')
-    plt.savefig(os.path.join(args.data_path, "scatter.pdf"), format="pdf", bbox_inches="tight")
+    plt.title('Class distribution in '+args.dataset_name+' test set.')
+    plt.savefig(os.path.join(args.data_path, args.dataset_name+"_"+args.set_type+"_scatter.pdf"), format="pdf", bbox_inches="tight")
     plt.show()
     
     
@@ -74,6 +87,12 @@ if __name__ == '__main__':
     if args.dataset_name == 'cifar10':
         classes_name = ['Airplane', 'Automobile', 'Bird', 'Cat', 'Deer', 'Dog', 'Frog', 'Horse', 'Ship', 'Truck']
     if args.dataset_name == 'mnist':
+        classes_name = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+    if args.dataset_name == 'mnist-m':
+        classes_name = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+    if args.dataset_name == 'svhn':
+        classes_name = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+    if args.dataset_name == 'usps':
         classes_name = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
     if args.graph_type == 'distribution':
         class_distribution(classes_name)
