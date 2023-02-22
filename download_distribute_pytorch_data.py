@@ -24,12 +24,12 @@ parser.add_argument('--image_height', type = int, default = 28, choices = ['28',
 parser.add_argument('--image_width', type = int, default = 28, choices = ['28', '32', '16', '224'], help = 'Width of each image in dataset')
 parser.add_argument('--image_channel', type = int, default = 1, help = 'Channel of a single image in dataset, i.e., 1, 3')
 parser.add_argument('--transform', type=bool, default = False, help = 'True, False')
-parser.add_argument('--number_of_clients', type = int, default = 1, help = 'Total nodes to which dataset is divided')
+parser.add_argument('--number_of_clients', type = int, default = 3, help = 'Total nodes to which dataset is divided')
 parser.add_argument('--distribution_method', type = str, default = 'non_iid', choices = ['iid, non_iid'], help = 'Type of data distribution')
 parser.add_argument('--dirichlet_alpha', type = float, default = 0.5, help = 'Value of alpha for dirichlet distribution')
 parser.add_argument('--imbalance_sigma', type = int, default = 0, help = '0 or otherwise')
 parser.add_argument('--num_workers', type=int, default = 1, help='1, 4, 8, ...')
-parser.add_argument('--download_type', type=str, default='images', choices=['images', 'pickle'])
+parser.add_argument('--download_type', type=str, default='pickle', choices=['images', 'pickle'])
 args = parser.parse_args() 
 
 def cifar10(transform):
@@ -66,8 +66,10 @@ def mnist(transform):
     return trainset, testset, train_batch, test_batch
 
 def mnist_m(transform):
-    # if transform is not None:
-        # transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+    if transform is not None:
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+    else:
+        transform = transforms.Compose([transforms.ToTensor()])
     data_path = os.path.join(args.data_path, 'mnist_m')
     train_data = os.path.join(data_path, 'mnist_m_train')
     test_data = os.path.join(data_path, 'mnist_m_test')
@@ -82,8 +84,9 @@ def mnist_m(transform):
         image_name = image_label[0]
         label = image_label[1]
         image = io.imread(os.path.join(train_data, image_name)) 
-        train_x.append(image)
-        train_y.append(label)
+        train_x.append(transform(image))
+        train_y.append(torch.tensor(int(label)))
+        break
     test_labels = os.path.join(data_path, 'mnist_m_test_labels.txt')
     test_labels = open(test_labels, 'r')
     test_labels = test_labels.readlines()
@@ -95,17 +98,14 @@ def mnist_m(transform):
         image_name = image_label[0]
         label = image_label[1]
         image = io.imread(os.path.join(test_data, image_name)) 
-        test_x.append(image)
-        test_y.append(label)
-    train_x = np.array(train_x)
-    train_y = np.array(train_y)
-    test_x = np.array(test_x)
-    test_y = np.array(test_y)
-    train_x, train_y, test_x, test_y = map(torch.tensor, (train_x.astype(np.float32), train_y.astype(np.int_), test_x.astype(np.float32), test_y.astype(np.int_)))
-    train_y = train_y.type(torch.LongTensor)
-    test_y = test_y.type(torch.LongTensor)
-    train_x = train_x.permute(0, 3, 1, 2)
-    test_x = test_x.permute(0, 3, 1, 2)
+        test_x.append(transform(image))
+        test_y.append(torch.tensor(int(label)))
+    
+    train_x = torch.stack(train_x, dim=0)
+    train_y = torch.stack(train_y, dim=0)
+    test_x = torch.stack(test_x, dim=0)
+    test_y = torch.stack(test_y, dim=0)
+    
     trainset = torch.utils.data.TensorDataset(train_x,train_y)
     testset = torch.utils.data.TensorDataset(test_x,test_y)
     train_batch = 59001
@@ -229,7 +229,6 @@ def data_download():
     test_iteration = testload.__iter__() 
     X_train, y_train = train_iteration.__next__()  # <class 'torch.Tensor'>
     X_test, y_test = test_iteration.__next__()
-    
     if args.download_type in 'pickle':
         data_to_clients_pickle(X_train, y_train, X_test, y_test)
     else:
@@ -241,7 +240,7 @@ def folder_images_csv_labels(X_train, y_train, X_test, y_test):
     data_store_path = os.path.join(args.data_path, args.dataset_name+'_train')  
     csv_file = open(os.path.join(args.data_path, args.dataset_name+'_train.csv'), 'w', newline='')  
     writer = csv.writer(csv_file)
-    for i in range(y_train.shape[0]):        
+    for i in range(y_train.shape[0]):
         save_image(X_train[i], os.path.join(data_store_path, str(i)+'.png'))
         writer.writerow([str(i)+'.png', y_train[i].item()])
     csv_file.close()
