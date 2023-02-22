@@ -1,11 +1,10 @@
-# Compare model prediction with ground truth label.
+===================Compare model prediction with ground truth label==================================================
 x, y = batch
 prediction = model(x)
 _, predicted = torch.max(prediction.data, 1)
 if prediction == y:
   print('Matched with label: ', y)
-  ===================================================
-  # extract features of image
+  ================extract features of image===================================
 import torch
 import torchvision.models as models
 import torchvision.transforms as transforms
@@ -24,8 +23,7 @@ input_batch = input_tensor.unsqueeze(0)  # create a mini-batch as expected by th
 with torch.no_grad():
     features = resnet18(input_batch)
 print(features.shape)
-==========================================================
-# Multidimensional scaling (MDS)
+============Multidimensional scaling (MDS)=============================================
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.manifold import MDS
@@ -38,4 +36,22 @@ dissimilarity_matrix = np.array([
 mds = MDS(n_components=2, dissimilarity='precomputed', random_state=42)
 X_mds = mds.fit_transform(dissimilarity_matrix)
 plt.scatter(X_mds[:, 0], X_mds[:, 1], c=[2,3,4], cmap='viridis')
+plt.show()
+====================Draw multiple lines on in a single graph=====================
+import matplotlib.pyplot as plt
+  
+x = [0, 2, 4, 6, 8, 10, 12, 14, 16]
+y1 = [0, 30, 60, 100, 200, 280, 392, 502, 630]
+y2 = [0, 252, 493, 762, 1004, 1485, 1998, 2278, 2750]
+y3 = [0, 10, 48, 100, 200, 300, 400, 550, 700]
+y4 = [0, 250, 500, 620, 860, 1175, 1325, 1650, 1940]
+plt.plot(x, y1, label = 'CNN-2 without FHE')
+plt.plot(x, y2, label = 'CNN-2 with FHE')
+plt.plot(x, y3, label = 'LeNet-1 without FHE')
+plt.plot(x, y4, label = 'NeNet-1 with FHE')
+plt.legend()
+plt.xlabel('Number of clients (N)', fontsize=12)
+plt.ylabel('Time (s)', fontsize=12)
+plt.title('Model training with and without FHE.', fontsize=12)
+plt.savefig('fhe_time.pdf')
 plt.show()
