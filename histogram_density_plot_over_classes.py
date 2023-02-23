@@ -12,13 +12,13 @@ import matplotlib.pyplot as plt
 import argparse
 
 parser = argparse.ArgumentParser(description = 'Main Script')
-parser.add_argument('--data_path', type = str, default = './data/mnist/', help = 'Path to the main directory')
-parser.add_argument('--dataset_name', type = str, default = 'mnist', help = 'cifar10, mnist, mnist-m, svhn, usps')
+parser.add_argument('--data_path', type = str, default = './data/mnist_m/', help = 'Path to the main directory')
+parser.add_argument('--dataset_name', type = str, default = 'mnist-m', help = 'cifar10, mnist, mnist-m, svhn, usps')
 parser.add_argument('--set_type', type=str, default='train', choices=['train', 'test'])
-parser.add_argument('--file_name', type = str, default = 'mnist_train_test.pkl', help = 'File name with extension')
+parser.add_argument('--file_name', type = str, default = 'mnist_m_train_test.pkl', help = 'File name with extension')
 parser.add_argument('--file_format', type = str, default = 'pickle', help = 'pickle, numpy')
 parser.add_argument('--graph_type', type = str, default = 'distribution', help = 'scatter, distribution')
-parser.add_argument('--client_index', type=int, default = 0, help = 'Client index if data is stacked for participating clients.')
+parser.add_argument('--client_index', type=int, default = 2, help = 'Client index if data is stacked for participating clients.')
 args = parser.parse_args() 
 
 
@@ -46,9 +46,9 @@ def class_distribution(classes_name):
         classes, counts = np.unique(y_train, return_counts=True)
     else:
         classes, counts = np.unique(y_test, return_counts=True)
-    bars = plt.barh(classes_name, counts)
+    bars = plt.barh(classes, counts)
     plt.bar_label(bars, label_type='center', color='white', labels=[f'{x:,}' for x in bars.datavalues])
-    plt.title('Class distribution in '+ args.dataset_name+' test set.')
+    plt.title('Class distribution in '+ args.dataset_name+' '+args.set_type+' set.')
     plt.savefig(os.path.join(args.data_path, args.dataset_name+"_"+args.set_type+"_distribution.pdf"), format="pdf", bbox_inches="tight")
 
 def scatter_plot(classes_name):
@@ -79,7 +79,7 @@ def scatter_plot(classes_name):
     # annotate labels
     for i, txt in enumerate(classes):
         ax.annotate(classes[i], (classes[i], counts[i]))           
-    plt.title('Class distribution in '+args.dataset_name+' test set.')
+    plt.title('Class distribution in '+args.dataset_name+' '+args.set_type+' set.')
     plt.savefig(os.path.join(args.data_path, args.dataset_name+"_"+args.set_type+"_scatter.pdf"), format="pdf", bbox_inches="tight")
     plt.show()
     
