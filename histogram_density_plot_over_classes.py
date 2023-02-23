@@ -12,12 +12,13 @@ import matplotlib.pyplot as plt
 import argparse
 
 parser = argparse.ArgumentParser(description = 'Main Script')
-parser.add_argument('--data_path', type = str, default = './data/usps/', help = 'Path to the main directory')
-parser.add_argument('--dataset_name', type = str, default = 'usps', help = 'cifar10, mnist, mnist-m, svhn, usps')
-parser.add_argument('--set_type', type=str, default='test', choices=['train', 'test'])
-parser.add_argument('--file_name', type = str, default = 'usps_train_test.pkl', help = 'File name with extension')
+parser.add_argument('--data_path', type = str, default = './data/mnist/', help = 'Path to the main directory')
+parser.add_argument('--dataset_name', type = str, default = 'mnist', help = 'cifar10, mnist, mnist-m, svhn, usps')
+parser.add_argument('--set_type', type=str, default='train', choices=['train', 'test'])
+parser.add_argument('--file_name', type = str, default = 'mnist_train_test.pkl', help = 'File name with extension')
 parser.add_argument('--file_format', type = str, default = 'pickle', help = 'pickle, numpy')
-parser.add_argument('--graph_type', type = str, default = 'scatter', help = 'scatter, distribution')
+parser.add_argument('--graph_type', type = str, default = 'distribution', help = 'scatter, distribution')
+parser.add_argument('--client_index', type=int, default = 0, help = 'Client index if data is stacked for participating clients.')
 args = parser.parse_args() 
 
 
@@ -38,8 +39,8 @@ def class_distribution(classes_name):
         y_test = np.load(os.path.join(args.data_path, 'y_test.npy'), allow_pickle=True)
         print('X_train.shape', X_train.shape) # (4, 12500, 3, 32, 32) => 4 clients each having 12500 samples
         print('y_train.shape', y_train.shape) # (4, 12500, 1)
-        y_train = y_train[0] # change index for each client
-        y_test = y_test[0]
+    y_train = y_train[args.client_index] # change index for each client
+    y_test = y_test[args.client_index]
     
     if args.set_type in 'train':
         classes, counts = np.unique(y_train, return_counts=True)
@@ -64,8 +65,8 @@ def scatter_plot(classes_name):
         y_test = np.load(os.path.join(args.data_path, 'y_test.npy'), allow_pickle=True)
         print('X_train.shape', X_train.shape) # (4, 12500, 3, 32, 32) => 4 clients each having 12500 samples
         print('y_train.shape', y_train.shape) # (4, 12500, 1)
-        y_train = y_train[0] # change index for each client
-        y_test = y_test[0]
+    y_train = y_train[args.client_index] # change index for each client
+    y_test = y_test[args.client_index]
     
     if args.set_type in 'train':
         classes, counts = np.unique(y_train, return_counts=True)
