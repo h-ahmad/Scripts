@@ -47,6 +47,7 @@ def class_distribution(classes_name):
     else:
         classes, counts = np.unique(y_test, return_counts=True)
     bars = plt.barh(classes, counts)
+    plt.yticks(classes)
     plt.bar_label(bars, label_type='center', color='white', labels=[f'{x:,}' for x in bars.datavalues])
     plt.title('Class distribution in '+ args.dataset_name+' '+args.set_type+' set.')
     plt.savefig(os.path.join(args.data_path, args.dataset_name+"_"+args.set_type+"_distribution.pdf"), format="pdf", bbox_inches="tight")
@@ -76,6 +77,7 @@ def scatter_plot(classes_name):
     fig, ax = plt.subplots()
     sizes = np.array(counts/10)
     ax.scatter(classes, counts, s = sizes,  c=colors, alpha=0.5)
+    plt.xticks(classes)
     # annotate labels
     for i, txt in enumerate(classes):
         ax.annotate(classes[i], (classes[i], counts[i]))           
