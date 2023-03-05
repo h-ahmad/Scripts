@@ -46,11 +46,23 @@ def class_distribution(classes_name):
         classes, counts = np.unique(y_train, return_counts=True)
     else:
         classes, counts = np.unique(y_test, return_counts=True)
-    bars = plt.barh(classes, counts)
-    plt.yticks(classes)
-    plt.bar_label(bars, label_type='center', color='white', labels=[f'{x:,}' for x in bars.datavalues])
+    plt.figure(figsize=(6, 5))
+    counts = counts.tolist()
+    import pandas as pd
+    score_series = pd.Series(counts)
+    fig = score_series.plot(kind='bar')
+    fig.set_xticklabels(classes)
+    fig.bar_label(fig.containers[0], label_type='edge')
     plt.title('Class distribution in '+ args.dataset_name+' '+args.set_type+' set.')
     plt.savefig(os.path.join(args.data_path, args.dataset_name+"_"+args.set_type+"_distribution.pdf"), format="pdf", bbox_inches="tight")
+    
+# =============================================================================
+#     bars = plt.barh(classes, counts)
+#     plt.yticks(classes)
+#     plt.bar_label(bars, label_type='center', color='white', labels=[f'{x:,}' for x in bars.datavalues])
+#     plt.title('Class distribution in '+ args.dataset_name+' '+args.set_type+' set.')
+#     plt.savefig(os.path.join(args.data_path, args.dataset_name+"_"+args.set_type+"_distribution.pdf"), format="pdf", bbox_inches="tight")
+# =============================================================================
 
 def scatter_plot(classes_name):
     if args.file_format == 'pickle':
