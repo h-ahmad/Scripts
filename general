@@ -1,3 +1,6 @@
+======================= Calculate number of parameters (M) in a model =========================
+num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+num_params = num_params / 1000000
 ===================Compare model prediction with ground truth label==================================================
 x, y = batch
 prediction = model(x)
