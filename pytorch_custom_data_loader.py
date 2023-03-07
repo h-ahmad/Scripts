@@ -14,6 +14,55 @@ import numpy as np
 import torchvision.transforms as transforms
 from sklearn.preprocessing import OneHotEncoder
 
+#### Loader for pickle file ###########
+class FLDataset(Dataset):
+    def __init__(self, args, client, phase, client_index = None):
+        super(FLDataset, self).__init__()
+        self.phase = phase
+
+        if self.phase == 'train':
+            self.transform = transforms.Compose([
+                transforms.RandomResizedCrop((args.resize, args.resize), scale=(0.05, 1.0)),
+                # transforms.ToTensor(),
+                transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+            ])
+        else:
+            self.transform = transforms.Compose([
+                transforms.Resize((args.resize, args.resize)),
+                # transforms.ToTensor(),
+                transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+            ])
+            
+        
+        data_file = os.path.join(os.path.join(args.data_path, client), client+'_train_test.pkl')
+        with open(data_file, 'rb') as file:
+                data_store = pickle.load(file)
+        train_x, train_y, test_x, test_y = data_store['X_train'], data_store['y_train'], data_store['X_test'], data_store['y_test'] 
+        train_x, train_y, test_x, test_y = map(torch.tensor, (train_x.astype(np.float32), train_y.astype(np.int_), 
+                                                          test_x.astype(np.float32), test_y.astype(np.int_))) 
+        
+        if self.phase == 'train':
+            self.label = train_y.type(torch.LongTensor)
+            if client_index is not None:
+                self.data = train_x[client_index]
+                self.label = self.label[client_index]
+            if (phase == 'train' and self.data.shape[1] == 1):
+                self.data = torch.cat((self.data, self.data, self.data), dim=1)
+        else:
+            self.label = test_y.type(torch.LongTensor)
+            if test_x.shape[1] == 1:
+                self.data = torch.cat((test_x, test_x, test_x), dim=1)
+            else:
+                self.data = test_x
+        # img, target = self.data, self.label
+    def __getitem__(self, index):
+        img, target = self.data[index], self.label[index]
+        if self.transform is not None:
+            img = self.transform(img)        
+        return img,  target
+    def __len__(self):
+        return len(self.data)
+
 class Cifar10Loader(Dataset):
     def __init__(self, csv_path, dataset_path, transform=None):
         self.image_names = pd.read_csv(csv_path)
