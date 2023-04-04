@@ -18,18 +18,18 @@ from torchvision.utils import save_image
 
 parser = argparse.ArgumentParser(description = 'Main Script')
 parser.add_argument('--data_path', type = str, default = './data', help = 'Path to the main directory')
-parser.add_argument('--dataset_name', type = str, default = 'pacs', choices = ['pacs', 'cifar10', 'cifar100', 'mnist', 'svhn', 'mnist_m', 'usps', 'imagenet'], help = 'Name of dataset')
+parser.add_argument('--dataset_name', type = str, default = 'usps', choices = ['pacs', 'cifar10', 'cifar100', 'mnist', 'svhn', 'mnist_m', 'usps', 'imagenet'], help = 'Name of dataset')
 parser.add_argument('--number_of_classes', type = int, default = 10, choices = ['2', '10', '100', '1000'], help = 'Number of classes in dataset')
-parser.add_argument('--image_height', type = int, default = 227, choices = ['227', '28', '32', '16', '224'], help = 'Height of each image in dataset')
-parser.add_argument('--image_width', type = int, default = 227, choices = ['227', '28', '32', '16', '224'], help = 'Width of each image in dataset')
-parser.add_argument('--image_channel', type = int, default = 3, help = 'Channel of a single image in dataset, i.e., 1, 3')
+parser.add_argument('--image_height', type = int, default = 16, choices = ['227', '28', '32', '16', '224'], help = 'Height of each image in dataset')
+parser.add_argument('--image_width', type = int, default = 16, choices = ['227', '28', '32', '16', '224'], help = 'Width of each image in dataset')
+parser.add_argument('--image_channel', type = int, default = 1, help = 'Channel of a single image in dataset, i.e., 1, 3')
 parser.add_argument('--transform', type=bool, default = False, help = 'True, False')
-parser.add_argument('--number_of_clients', type = int, default = 3, help = 'Total nodes to which dataset is divided')
-parser.add_argument('--distribution_method', type = str, default = 'non_iid', choices = ['iid, non_iid'], help = 'Type of data distribution')
+parser.add_argument('--number_of_clients', type = int, default = 1, help = 'Total nodes to which dataset is divided')
+parser.add_argument('--distribution_method', type = str, default = 'iid', choices = ['iid, non_iid'], help = 'Type of data distribution')
 parser.add_argument('--dirichlet_alpha', type = float, default = 0.5, help = 'Value of alpha for dirichlet distribution')
 parser.add_argument('--imbalance_sigma', type = int, default = 0, help = '0 or otherwise')
 parser.add_argument('--num_workers', type=int, default = 1, help='1, 4, 8, ...')
-parser.add_argument('--download_type', type=str, default='images', choices=['images', 'pickle'])
+parser.add_argument('--download_type', type=str, default='class_wise_folders', choices=['images', 'pickle', 'class_wise_folders'])
 args = parser.parse_args() 
 
 def cifar10(transform):
@@ -116,6 +116,8 @@ def mnist_m(transform):
 def usps(transform):
     if transform is not None:
         transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1564,), (0.2566,))])
+    else:
+        transform = transforms.Compose([transforms.ToTensor()])
     trainset = torchvision.datasets.USPS(root=args.data_path, train=True , download=True, transform=transform)
     testset = torchvision.datasets.USPS(root=args.data_path, train=False, download=True, transform=transform)
     train_batch = 7291
@@ -273,6 +275,8 @@ def data_download():
     X_test, y_test = test_iteration.__next__()
     if args.download_type in 'pickle':
         data_to_clients_pickle(X_train, y_train, X_test, y_test)
+    if args.download_type in 'class_wise_folders':
+        class_wise_distribution(X_train, y_train)
     else:
         folder_images_csv_labels(X_train, y_train, X_test, y_test)
 
@@ -296,6 +300,14 @@ def folder_images_csv_labels(X_train, y_train, X_test, y_test):
         writer.writerow([str(i)+'.png', y_test[i].item()])
     csv_file.close()
     print('Data download at: ', args.data_path)
+    
+def class_wise_distribution(X_train, y_train):
+    os.makedirs(os.path.join(args.data_path, args.dataset_name+'_train'), exist_ok = True)
+    data_store_path = os.path.join(args.data_path, args.dataset_name+'_train')  
+    for i in range(y_train.shape[0]):
+        os.makedirs(os.path.join(data_store_path, str(y_train[i].item())), exist_ok = True)
+        image_path = os.path.join(data_store_path, str(y_train[i].item()))
+        save_image(X_train[i], os.path.join(image_path, str(i)+'.png'))
 
 def data_to_clients_pickle(X_train, y_train, X_test, y_test):
     # convert tensor to numpy array and reshape
