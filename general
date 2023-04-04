@@ -51,7 +51,7 @@ y4 = [0, 250, 500, 620, 860, 1175, 1325, 1650, 1940]
 plt.plot(x, y1, label = 'CNN-2 without FHE')
 plt.plot(x, y2, label = 'CNN-2 with FHE')
 plt.plot(x, y3, label = 'LeNet-1 without FHE')
-plt.plot(x, y4, label = 'NeNet-1 with FHE')
+plt.plot(x, y4, label = 'LeNet-1 with FHE')
 plt.legend()
 plt.xlabel('Number of clients (N)', fontsize=12)
 plt.ylabel('Time (s)', fontsize=12)
