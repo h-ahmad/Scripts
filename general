@@ -7,6 +7,10 @@ prediction = model(x)
 _, predicted = torch.max(prediction.data, 1)
 if prediction == y:
   print('Matched with label: ', y)
+================= Use multiple GPUs for training in PyTorch ===========================
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device_ids = [0, 1, 2, 3]
+network = nn.DataParallel(network, device_ids=device_ids).to(device)
   ================extract features of image===================================
 import torch
 import torchvision.models as models
