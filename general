@@ -1,5 +1,6 @@
 =================== Python Configuration ==========================
 $ conda create --name {env_name}
+$ conda env list
 $ conda activate {env_name}
 $ conda deactivate
 ================== Image resize =============================
