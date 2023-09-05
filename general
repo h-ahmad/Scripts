@@ -87,3 +87,5 @@ with h5py.File(os.path.join('train_val_split', 'art_painting_test.hdf5'), "r") a
     ds_obj = f[a_group_key]      # returns as a h5py dataset object
     ds_arr = f[a_group_key][()]  # returns as a numpy array
     # print('ds_arr: ', ds_arr.shape)    # (2048, 227, 227, 3)
+=========================== Kill a process using GPU ============================
+$ kill -9 <PID>
