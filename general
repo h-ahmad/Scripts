@@ -3,6 +3,7 @@ $ conda create --name {env_name}
 $ conda env list
 $ conda activate {env_name}
 $ conda deactivate
+$ conda remove --name {env_name} --all
 ================== Image resize =============================
 from torchvision import transforms
 def trnasformMS(height, width, PILimage):
