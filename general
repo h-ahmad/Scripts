@@ -1,7 +1,7 @@
 =================== Python Configuration ==========================
 $ conda create --name {env_name}
 $ conda env list
-$ conda activate {env_name}
+$ conda activate {env_name} python={version}
 $ conda deactivate
 $ conda remove --name {env_name} --all
 ================== Image resize =============================
