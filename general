@@ -4,6 +4,8 @@ $ conda env list
 $ conda activate {env_name} python={version}
 $ conda deactivate
 $ conda remove --name {env_name} --all
+# if using .yml file to built environment
+$ conda env create -f environement_file.yml
 ================== Image resize =============================
 from torchvision import transforms
 def trnasformMS(height, width, PILimage):
