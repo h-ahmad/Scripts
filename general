@@ -1,7 +1,7 @@
 =================== Python Configuration ==========================
-$ conda create --name {env_name}
+$ conda create --name {env_name} python={version}
 $ conda env list
-$ conda activate {env_name} python={version}
+$ conda activate {env_name}
 $ conda deactivate
 $ conda remove --name {env_name} --all
 # if using .yml file to built environment
